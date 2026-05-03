@@ -2,7 +2,7 @@ import { supabase } from "./supabaseClient";
 import { getUserId } from "./userStorage";
 
 /* =========================
-   STOP WORDS (unverändert)
+   STOP WORDS
 ========================= */
 const STOP_WORDS = new Set([
   "der","die","das","ein","eine","einen","einem","eines","einer",
@@ -74,7 +74,7 @@ export function validateAnswerMeaning(
 }
 
 /* =========================
-   🔥 SUPABASE SAVE (WICHTIG)
+   🔥 SAVE ANSWER (FIXED)
 ========================= */
 export async function saveAnswer(
   questionId: string,
@@ -82,18 +82,21 @@ export async function saveAnswer(
 ) {
   if (!supabase) return;
 
-  // 🔥 User holen
+  // User holen
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
   if (!user) return;
 
-  // 🔥 aktuellen Stand holen
+  // User ID (Fallback falls nötig)
+  const userId = user.id || getUserId();
+
+  // aktuellen Stand holen
   const { data: existing, error } = await supabase
     .from("users")
     .select("*")
-    .eq("id", user.id)
+    .eq("id", userId)
     .single();
 
   if (error || !existing) {
@@ -101,7 +104,7 @@ export async function saveAnswer(
     return;
   }
 
-  // 🔥 Werte berechnen
+  // Werte berechnen
   const newTotal = (existing.totalQuestionsAnswerd ?? 0) + 1;
 
   const newCorrect =
@@ -109,7 +112,7 @@ export async function saveAnswer(
       ? (existing.correctAnswers ?? 0) + 1
       : (existing.correctAnswers ?? 0);
 
-  // 🔥 UPDATE
+  // USER UPDATE
   const { error: updateError } = await supabase
     .from("users")
     .update({
@@ -117,26 +120,28 @@ export async function saveAnswer(
       correctAnswers: newCorrect,
       lastActive: new Date().toISOString(),
     })
-    .eq("id", user.id);
+    .eq("id", userId);
 
   if (updateError) {
     console.error("Update Fehler:", updateError);
   }
-  }
 
-  const { error } = await supabase.from("user_progress").insert([
-    {
-      user_id: userId,
-      question_id: questionId,
-      correct: result === "correct",
-      result: result,
-      timestamp: new Date().toISOString(),
-    },
-  ]);
+  // 🔥 PROGRESS SPEICHERN (JETZT RICHTIG!)
+  const { error: insertError } = await supabase
+    .from("user_progress")
+    .insert([
+      {
+        user_id: userId,
+        question_id: questionId,
+        correct: result === "correct",
+        result: result,
+        timestamp: new Date().toISOString(),
+      },
+    ]);
 
-  if (error) {
-    console.error("❌ Supabase Fehler:", error.message);
+  if (insertError) {
+    console.error("❌ Supabase Fehler:", insertError.message);
   } else {
-    console.log("✅ In Supabase gespeichert:", questionId, result);
+    console.log("✅ Gespeichert:", questionId, result);
   }
 }
