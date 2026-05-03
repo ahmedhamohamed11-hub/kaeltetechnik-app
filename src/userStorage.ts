@@ -6,6 +6,10 @@ export type UsersDB = Record<string, UserRecord>;
 
 const USERS_KEY = "kaeltetechnik_users";
 
+/* =========================
+   BESTEHENDE FUNKTIONEN (UNVERÄNDERT)
+========================= */
+
 export function loadUsers(): UsersDB {
   try {
     const raw = localStorage.getItem(USERS_KEY);
@@ -27,4 +31,19 @@ export function saveUsers(db: UsersDB) {
 
 export function storageKeyForUser(name: string) {
   return `kaeltetechnik_v1_${name.toLowerCase().replace(/\s+/g, "_")}`;
+}
+
+/* =========================
+   NEU HINZUGEFÜGT (WICHTIG!)
+========================= */
+
+export function getUserId(): string {
+  let userId = localStorage.getItem("ktm_user_id");
+
+  if (!userId) {
+    userId = crypto.randomUUID();
+    localStorage.setItem("ktm_user_id", userId);
+  }
+
+  return userId;
 }
