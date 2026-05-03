@@ -122,7 +122,6 @@ export async function saveAnswer(
   if (updateError) {
     console.error("Update Fehler:", updateError);
   }
-}
   }
 
   const { error } = await supabase.from("user_progress").insert([
