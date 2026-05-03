@@ -814,11 +814,14 @@ export default function AdminPanel({ onClose, onChanged, onAddQuestions, customQ
                   const displayName = user.name
                     ? user.name.charAt(0).toUpperCase() + user.name.slice(1)
                     : "?";
-                  const total = user.totalQuestionsAnswerd ?? 0;
-                  const correct = user.correctAnswers ?? 0;
-                  const pct = total > 0 ? Math.round((correct / total) * 100) : 0;
-                  const wrong = total - correct;
+                  const total = Number(user.totalQuestionsAnswerd ?? 0);
+                  const correct = Number(user.correctAnswers ?? 0);
+                // 🔥 FIX (nur Erweiterung, keine Logik kaputt)
+                  let wrong = total - correct;
+                  if (wrong < 0) wrong = 0;
+                  // 🔥 Prozent bleibt gleich, nur sauber
                   const online = isOnline(user.lastActive);
+                  const pct = total > 0 ? Math.round((correct / total) * 100) : 0;
                   const expanded = expandedUserId === user.id;
                   const days = user.learnDays ?? [];
 
