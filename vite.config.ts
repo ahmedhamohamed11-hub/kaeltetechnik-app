@@ -16,22 +16,13 @@ export default defineConfig({
       manifest: {
         name: "Kältetechnik Meister-Lernprogramm",
         short_name: "KTM Lernen",
-        description: "Lernprogramm für Kältetechnik Meister",
         start_url: "/",
         display: "standalone",
         background_color: "#1a237e",
         theme_color: "#1a237e",
         icons: [
-          {
-            src: "/logo.png",
-            sizes: "192x192",
-            type: "image/png",
-          },
-          {
-            src: "/logo.png",
-            sizes: "512x512",
-            type: "image/png",
-          },
+          { src: "/logo.png", sizes: "192x192", type: "image/png" },
+          { src: "/logo.png", sizes: "512x512", type: "image/png" }
         ],
       },
     }),
