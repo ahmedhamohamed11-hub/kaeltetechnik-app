@@ -1,6 +1,9 @@
 import { supabase } from "./supabaseClient";
 import { getUserId } from "./userStorage";
 
+/* =========================
+   STOP WORDS (Filter)
+========================= */
 const STOP_WORDS = new Set([
   "der","die","das","ein","eine","einen","einem","eines","einer",
   "und","oder","ist","sind","wird","werden","wurde","wurden",
@@ -14,10 +17,13 @@ const STOP_WORDS = new Set([
   "dieses","diesen","dieser","welcher","welche",
 ]);
 
+/* =========================
+   Kurzantwort generieren
+========================= */
 export function getShortAnswer(answer: string): string {
   const trimmed = answer.trim();
-  const sentenceMatch = trimmed.match(/^[^.!?]*[.!?]/);
 
+  const sentenceMatch = trimmed.match(/^[^.!?]*[.!?]/);
   if (sentenceMatch) {
     const first = sentenceMatch[0].trim();
     if (first.length >= 20 && first.length <= 180) return first;
@@ -31,6 +37,9 @@ export function getShortAnswer(answer: string): string {
   return trimmed.slice(0, 157) + "…";
 }
 
+/* =========================
+   Keywords extrahieren
+========================= */
 function extractKeywords(text: string): string[] {
   return text
     .toLowerCase()
@@ -39,6 +48,9 @@ function extractKeywords(text: string): string[] {
     .filter((w) => w.length >= 3 && !STOP_WORDS.has(w));
 }
 
+/* =========================
+   Bewertung
+========================= */
 export type ValidationResult = "correct" | "partial" | "wrong";
 
 export function validateAnswerMeaning(
@@ -61,23 +73,35 @@ export function validateAnswerMeaning(
   return "wrong";
 }
 
+/* =========================
+   Antwort speichern
+========================= */
 export async function saveAnswer(
   questionId: string,
   result: ValidationResult
 ): Promise<void> {
   const userId = getUserId();
 
+  console.log("SAVE:", questionId, result); // Debug (kannst du später löschen)
+
   const { error } = await supabase.from("user_progress").insert([
     {
       user_id: userId,
       question_id: questionId,
+
+      // einfache Auswertung
       correct: result === "correct",
+
+      // detaillierte Auswertung (wichtig für Statistik später!)
       result: result,
+
       timestamp: new Date().toISOString(),
     },
   ]);
 
   if (error) {
-    console.error("Supabase Fehler:", error);
+    console.error("❌ Supabase Fehler:", error);
+  } else {
+    console.log("✅ Gespeichert!");
   }
 }
