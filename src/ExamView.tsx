@@ -79,21 +79,24 @@ export default function ExamView({
     return () => clearInterval(id);
   }, [phase]);
 
-  function commitAnswer(ans: number | null) {
+  async function commitAnswer(ans: number | null) {
     const newAnswers = [...userAnswers];
     newAnswers[currentIdx] = ans;
     setUserAnswers(newAnswers);
 
-    // Speichern in Supabase
     const currentQuestion = examQuestions[currentIdx];
     if (currentQuestion) {
       const result = ans === currentQuestion.correctIdx ? "correct" : "wrong";
 
-      // Anpassung: question_id wird als Index gespeichert,
-      // damit es sicher funktioniert, auch wenn question.id nicht existiert
+      // Question-ID sicher speichern: Index als Text
       const questionId = String(currentIdx);
 
-      saveAnswer(questionId, result);
+      try {
+        await saveAnswer(questionId, result);
+        console.log("✅ Gespeichert:", questionId, result);
+      } catch (error) {
+        console.error("❌ Fehler beim Speichern:", error);
+      }
     }
 
     if (currentIdx + 1 >= EXAM_COUNT) {
@@ -166,6 +169,7 @@ export default function ExamView({
   if (phase === "running") {
     const eq = examQuestions[currentIdx];
     const pct = Math.round((currentIdx / EXAM_COUNT) * 100);
+
     return (
       <div className="exam-running">
         <div className="exam-topbar">
@@ -180,6 +184,7 @@ export default function ExamView({
             ⏱ {formatTime(timeLeft)}
           </span>
         </div>
+
         <div className="progress-track" style={{ borderRadius: 0, height: 5 }}>
           <div
             className="progress-fill"
