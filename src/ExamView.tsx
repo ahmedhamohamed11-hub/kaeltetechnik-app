@@ -1,3 +1,4 @@
+import { saveAnswer } from "./answerUtils";
 import { useState, useEffect, useMemo } from "react";
 import type { Question } from "./questions";
 import { generateMCOptions, type MCOption } from "./distractor";
@@ -28,7 +29,13 @@ function formatTime(seconds: number): string {
 
 const LABELS = ["A", "B", "C", "D"];
 
-export default function ExamView({ onBack, allQs }: { onBack: () => void; allQs: Question[] }) {
+export default function ExamView({
+  onBack,
+  allQs,
+}: {
+  onBack: () => void;
+  allQs: Question[];
+}) {
   const [phase, setPhase] = useState<"setup" | "running" | "results">("setup");
   const [examQuestions, setExamQuestions] = useState<ExamQuestion[]>([]);
   const [currentIdx, setCurrentIdx] = useState(0);
@@ -44,6 +51,7 @@ export default function ExamView({ onBack, allQs }: { onBack: () => void; allQs:
       const correctIdx = opts.findIndex((o) => o.isCorrect);
       return { question: q, options: opts, correctIdx };
     });
+
     setExamQuestions(eqs);
     setUserAnswers(new Array(EXAM_COUNT).fill(null));
     setCurrentIdx(0);
@@ -55,6 +63,7 @@ export default function ExamView({ onBack, allQs }: { onBack: () => void; allQs:
 
   useEffect(() => {
     if (phase !== "running") return;
+
     const id = setInterval(() => {
       setTimeLeft((t) => {
         if (t <= 1) {
@@ -66,6 +75,7 @@ export default function ExamView({ onBack, allQs }: { onBack: () => void; allQs:
         return t - 1;
       });
     }, 1000);
+
     return () => clearInterval(id);
   }, [phase]);
 
@@ -73,6 +83,19 @@ export default function ExamView({ onBack, allQs }: { onBack: () => void; allQs:
     const newAnswers = [...userAnswers];
     newAnswers[currentIdx] = ans;
     setUserAnswers(newAnswers);
+
+    // Erweiterung: Antwort in Supabase speichern
+    const currentQuestion = examQuestions[currentIdx];
+    if (currentQuestion) {
+      const result = ans === currentQuestion.correctIdx ? "correct" : "wrong";
+      const questionId =
+        "id" in currentQuestion.question
+          ? String((currentQuestion.question as { id: string | number }).id)
+          : String(currentIdx);
+
+      saveAnswer(questionId, result);
+    }
+
     if (currentIdx + 1 >= EXAM_COUNT) {
       setPhase("results");
     } else {
@@ -143,6 +166,7 @@ export default function ExamView({ onBack, allQs }: { onBack: () => void; allQs:
   if (phase === "running") {
     const eq = examQuestions[currentIdx];
     const pct = Math.round((currentIdx / EXAM_COUNT) * 100);
+
     return (
       <div className="exam-running">
         <div className="exam-topbar">
@@ -150,24 +174,39 @@ export default function ExamView({ onBack, allQs }: { onBack: () => void; allQs:
             Frage {currentIdx + 1} / {EXAM_COUNT}
           </span>
           <span
-            className={`exam-timer${timerCritical ? " timer-critical" : timerWarning ? " timer-warning" : ""}`}
+            className={`exam-timer${
+              timerCritical ? " timer-critical" : timerWarning ? " timer-warning" : ""
+            }`}
           >
             ⏱ {formatTime(timeLeft)}
           </span>
         </div>
+
         <div className="progress-track" style={{ borderRadius: 0, height: 5 }}>
-          <div className="progress-fill" style={{ width: `${pct}%`, transition: "none" }} />
+          <div
+            className="progress-fill"
+            style={{ width: `${pct}%`, transition: "none" }}
+          />
         </div>
 
-        <div className="flashcard mc-card" style={{ marginTop: 0, borderTopLeftRadius: 0, borderTopRightRadius: 0 }}>
+        <div
+          className="flashcard mc-card"
+          style={{
+            marginTop: 0,
+            borderTopLeftRadius: 0,
+            borderTopRightRadius: 0,
+          }}
+        >
           <div className="card-meta">
             <span className="card-block">{eq.question.block}</span>
             <span className="card-num">Frage {currentIdx + 1}</span>
             <span className="badge badge-exam">Prüfung</span>
           </div>
+
           <div className="card-question">
             <p>{eq.question.question}</p>
           </div>
+
           <div className="mc-options">
             {eq.options.map((opt, idx) => (
               <button
@@ -180,11 +219,9 @@ export default function ExamView({ onBack, allQs }: { onBack: () => void; allQs:
               </button>
             ))}
           </div>
+
           <div className="exam-card-footer">
-            <button
-              className="btn btn-skip"
-              onClick={() => commitAnswer(null)}
-            >
+            <button className="btn btn-skip" onClick={() => commitAnswer(null)}>
               Überspringen
             </button>
             {selected !== null && (
@@ -192,7 +229,9 @@ export default function ExamView({ onBack, allQs }: { onBack: () => void; allQs:
                 className="btn btn-primary mc-next"
                 onClick={() => commitAnswer(selected)}
               >
-                {currentIdx + 1 >= EXAM_COUNT ? "Prüfung abgeben →" : "Nächste Frage →"}
+                {currentIdx + 1 >= EXAM_COUNT
+                  ? "Prüfung abgeben →"
+                  : "Nächste Frage →"}
               </button>
             )}
           </div>
@@ -201,7 +240,11 @@ export default function ExamView({ onBack, allQs }: { onBack: () => void; allQs:
         <button
           className="btn btn-danger exam-abort"
           onClick={() => {
-            if (window.confirm("Prüfung abbrechen? Die bisherigen Antworten werden ausgewertet.")) {
+            if (
+              window.confirm(
+                "Prüfung abbrechen? Die bisherigen Antworten werden ausgewertet."
+              )
+            ) {
               setPhase("results");
             }
           }}
@@ -213,13 +256,16 @@ export default function ExamView({ onBack, allQs }: { onBack: () => void; allQs:
   }
 
   if (!results) return null;
+
   const pct = Math.round((results.score / results.total) * 100);
   const passed = pct >= 60;
 
   return (
     <div className="exam-results">
       {timedOut && (
-        <div className="exam-timeout-notice">⏱ Zeit abgelaufen — automatische Abgabe</div>
+        <div className="exam-timeout-notice">
+          ⏱ Zeit abgelaufen — automatische Abgabe
+        </div>
       )}
 
       <div className="exam-result-header">
@@ -233,7 +279,9 @@ export default function ExamView({ onBack, allQs }: { onBack: () => void; allQs:
         </div>
         <div className="exam-score-breakdown">
           <span className="score-correct">✓ {results.score} Richtig</span>
-          <span className="score-wrong">✗ {results.total - results.score} Falsch</span>
+          <span className="score-wrong">
+            ✗ {results.total - results.score} Falsch
+          </span>
         </div>
       </div>
 
