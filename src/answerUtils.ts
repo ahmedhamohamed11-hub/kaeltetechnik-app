@@ -78,13 +78,51 @@ export function validateAnswerMeaning(
 ========================= */
 export async function saveAnswer(
   questionId: string,
-  result: ValidationResult
-): Promise<void> {
-  const userId = getUserId();
+  result: "correct" | "wrong"
+) {
+  if (!supabase) return;
 
-  if (!userId) {
-    console.error("❌ Kein User gefunden!");
+  // 🔥 User holen
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) return;
+
+  // 🔥 aktuellen Stand holen
+  const { data: existing, error } = await supabase
+    .from("users")
+    .select("*")
+    .eq("id", user.id)
+    .single();
+
+  if (error || !existing) {
+    console.error("User nicht gefunden:", error);
     return;
+  }
+
+  // 🔥 Werte berechnen
+  const newTotal = (existing.totalQuestionsAnswerd ?? 0) + 1;
+
+  const newCorrect =
+    result === "correct"
+      ? (existing.correctAnswers ?? 0) + 1
+      : (existing.correctAnswers ?? 0);
+
+  // 🔥 UPDATE
+  const { error: updateError } = await supabase
+    .from("users")
+    .update({
+      totalQuestionsAnswerd: newTotal,
+      correctAnswers: newCorrect,
+      lastActive: new Date().toISOString(),
+    })
+    .eq("id", user.id);
+
+  if (updateError) {
+    console.error("Update Fehler:", updateError);
+  }
+}
   }
 
   const { error } = await supabase.from("user_progress").insert([
