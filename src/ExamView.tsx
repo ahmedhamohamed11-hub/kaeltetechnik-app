@@ -84,14 +84,14 @@ export default function ExamView({
     newAnswers[currentIdx] = ans;
     setUserAnswers(newAnswers);
 
-    // Erweiterung: Antwort in Supabase speichern
+    // Speichern in Supabase
     const currentQuestion = examQuestions[currentIdx];
     if (currentQuestion) {
       const result = ans === currentQuestion.correctIdx ? "correct" : "wrong";
-      const questionId =
-        "id" in currentQuestion.question
-          ? String((currentQuestion.question as { id: string | number }).id)
-          : String(currentIdx);
+
+      // Anpassung: question_id wird als Index gespeichert,
+      // damit es sicher funktioniert, auch wenn question.id nicht existiert
+      const questionId = String(currentIdx);
 
       saveAnswer(questionId, result);
     }
@@ -166,7 +166,6 @@ export default function ExamView({
   if (phase === "running") {
     const eq = examQuestions[currentIdx];
     const pct = Math.round((currentIdx / EXAM_COUNT) * 100);
-
     return (
       <div className="exam-running">
         <div className="exam-topbar">
@@ -181,7 +180,6 @@ export default function ExamView({
             ⏱ {formatTime(timeLeft)}
           </span>
         </div>
-
         <div className="progress-track" style={{ borderRadius: 0, height: 5 }}>
           <div
             className="progress-fill"
@@ -229,9 +227,7 @@ export default function ExamView({
                 className="btn btn-primary mc-next"
                 onClick={() => commitAnswer(selected)}
               >
-                {currentIdx + 1 >= EXAM_COUNT
-                  ? "Prüfung abgeben →"
-                  : "Nächste Frage →"}
+                {currentIdx + 1 >= EXAM_COUNT ? "Prüfung abgeben →" : "Nächste Frage →"}
               </button>
             )}
           </div>
