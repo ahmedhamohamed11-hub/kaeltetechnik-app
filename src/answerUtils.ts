@@ -2,7 +2,7 @@ import { supabase } from "./supabaseClient";
 import { getUserId } from "./userStorage";
 
 /* =========================
-   STOP WORDS (Filter)
+   STOP WORDS (unverändert)
 ========================= */
 const STOP_WORDS = new Set([
   "der","die","das","ein","eine","einen","einem","eines","einer",
@@ -11,19 +11,19 @@ const STOP_WORDS = new Set([
   "aus","nach","über","unter","vor","hinter","neben","zwischen",
   "den","dem","des","nicht","auch","sich","noch","aber","wenn",
   "dass","this","the","and","for","are","was","has","have","with",
-  "kann","muss","darf","soll","hat","kein","keine",
+  "bei","aus","kann","muss","darf","soll","wird","hat","kein","keine",
   "damit","wobei","sodass","jedoch","somit","daher",
   "immer","erst","dann","nur","sehr","mehr","less","beim",
   "dieses","diesen","dieser","welcher","welche",
 ]);
 
 /* =========================
-   Kurzantwort generieren
+   SHORT ANSWER
 ========================= */
 export function getShortAnswer(answer: string): string {
   const trimmed = answer.trim();
-
   const sentenceMatch = trimmed.match(/^[^.!?]*[.!?]/);
+
   if (sentenceMatch) {
     const first = sentenceMatch[0].trim();
     if (first.length >= 20 && first.length <= 180) return first;
@@ -38,7 +38,7 @@ export function getShortAnswer(answer: string): string {
 }
 
 /* =========================
-   Keywords extrahieren
+   KEYWORDS
 ========================= */
 function extractKeywords(text: string): string[] {
   return text
@@ -49,7 +49,7 @@ function extractKeywords(text: string): string[] {
 }
 
 /* =========================
-   Bewertung
+   VALIDATION
 ========================= */
 export type ValidationResult = "correct" | "partial" | "wrong";
 
@@ -74,7 +74,7 @@ export function validateAnswerMeaning(
 }
 
 /* =========================
-   Antwort speichern
+   🔥 SUPABASE SAVE (WICHTIG)
 ========================= */
 export async function saveAnswer(
   questionId: string,
@@ -82,26 +82,24 @@ export async function saveAnswer(
 ): Promise<void> {
   const userId = getUserId();
 
-  console.log("SAVE:", questionId, result); // Debug (kannst du später löschen)
+  if (!userId) {
+    console.error("❌ Kein User gefunden!");
+    return;
+  }
 
   const { error } = await supabase.from("user_progress").insert([
     {
       user_id: userId,
       question_id: questionId,
-
-      // einfache Auswertung
       correct: result === "correct",
-
-      // detaillierte Auswertung (wichtig für Statistik später!)
       result: result,
-
       timestamp: new Date().toISOString(),
     },
   ]);
 
   if (error) {
-    console.error("❌ Supabase Fehler:", error);
+    console.error("❌ Supabase Fehler:", error.message);
   } else {
-    console.log("✅ Gespeichert!");
+    console.log("✅ In Supabase gespeichert:", questionId, result);
   }
 }
