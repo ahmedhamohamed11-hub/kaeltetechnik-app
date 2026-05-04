@@ -92,8 +92,8 @@ export default function ExamView({
       const questionId = String(currentIdx);
 
       try {
-        await saveAnswer(questionId, result);
-        console.log("✅ Gespeichert:", questionId, result);
+        console.log("🔥 SAVE TRIGGERED", question.id, result);
+        await saveAnswer(String(question.id), result);
       } catch (error) {
         console.error("❌ Fehler beim Speichern:", error);
       }
