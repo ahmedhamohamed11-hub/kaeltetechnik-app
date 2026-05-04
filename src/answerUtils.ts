@@ -150,6 +150,7 @@ export async function saveAnswer(
           question_id: questionId,
           correct: result === "correct",
           created_at: new Date().toISOString(), // 🔥 FIX
+          result: result,
         },
       ]);
 
