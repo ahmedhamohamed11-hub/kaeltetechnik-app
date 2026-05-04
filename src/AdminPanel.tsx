@@ -5,6 +5,7 @@ import type { AdminOverrides } from "./adminOverrides";
 import type { Question } from "./questions";
 import { loadUsers, saveUsers, storageKeyForUser } from "./userStorage";
 import { supabase } from "./supabaseClient";
+const [liveAnswers, setLiveAnswers] = useState<any[]>([]);
 
 interface SupabaseUser {
   id: string;
@@ -183,20 +184,81 @@ export default function AdminPanel({ onClose, onChanged, onAddQuestions, customQ
   const [expandedUserId, setExpandedUserId] = useState<string | null>(null);
 
   // ── Supabase users: load + realtime ─────────────────────────────────────────
+useEffect(() => {
+  if (!unlocked || adminTab !== "users" || !supabase) return;
+
+  setSbLoading(true);
+  supabase
+    .from("users")
+    .select("*")
+    .order("lastLoginDate", { ascending: false })
+    .then(({ data, error }) => {
+      setSbLoading(false);
+      if (error) {
+        console.warn("[Supabase Admin] users fetch:", error.message);
+        return;
+      }
+      setSbUsers((data as SupabaseUser[]) ?? []);
+    });
+
+  const channel = supabase
+    .channel("admin-users-watch")
+    .on(
+      "postgres_changes",
+      { event: "INSERT", schema: "public", table: "users" },
+      (payload) => setSbUsers((prev) => [payload.new as SupabaseUser, ...prev])
+    )
+    .on(
+      "postgres_changes",
+      { event: "UPDATE", schema: "public", table: "users" },
+      (payload) =>
+        setSbUsers((prev) =>
+          prev.map((u) =>
+            u.id === (payload.new as SupabaseUser).id
+              ? (payload.new as SupabaseUser)
+              : u
+          )
+        )
+    )
+    .on(
+      "postgres_changes",
+      { event: "DELETE", schema: "public", table: "users" },
+      (payload) =>
+        setSbUsers((prev) =>
+          prev.filter((u) => u.id !== (payload.old as { id: string }).id)
+        )
+    )
+    .subscribe();
+
+  return () => {
+    channel.unsubscribe();
+  };
+}, [unlocked, adminTab]);
   useEffect(() => {
-    if (!unlocked || adminTab !== "users" || !supabase) return;
+  if (!unlocked || adminTab !== "users" || !supabase) return;
 
-    setSbLoading(true);
-    supabase
-      .from("users")
-      .select("*")
-      .order("lastLoginDate", { ascending: false })
-      .then(({ data, error }) => {
-        setSbLoading(false);
-        if (error) { console.warn("[Supabase Admin] users fetch:", error.message); return; }
-        setSbUsers((data as SupabaseUser[]) ?? []);
-      });
+  const channel = supabase
+    .channel("admin-answers-watch")
+    .on(
+      "postgres_changes",
+      {
+        event: "INSERT",
+        schema: "public",
+        table: "user_progress",
+      },
+      (payload) => {
+        console.log("🔥 Neue Antwort:", payload.new);
 
+        // OPTIONAL: später UI anzeigen
+        // setLiveAnswers(prev => [payload.new, ...prev]);
+      }
+    )
+    .subscribe();
+
+  return () => {
+    channel.unsubscribe();
+  };
+}, [unlocked, adminTab]);
     const channel = supabase
       .channel("admin-users-watch")
       .on(
