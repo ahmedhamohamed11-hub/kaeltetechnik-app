@@ -15,7 +15,7 @@ import PruefungsvorbereitungView from "./PruefungsvorbereitungView";
 import SmartCard from "./SmartCard";
 import { useSwipe } from "./useSwipe";
 import { playCorrect, playWrong } from "./playSound";
-import { getGreeting } from "../lib/greeting";
+import { getGreeting } from "./lib/greeting";
 
 const CALC_BLOCK = "Rechenaufgaben & Berechnungen";
 const _homeRandomFraction = Math.random();
