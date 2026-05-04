@@ -5,7 +5,6 @@ import type { AdminOverrides } from "./adminOverrides";
 import type { Question } from "./questions";
 import { loadUsers, saveUsers, storageKeyForUser } from "./userStorage";
 import { supabase } from "./supabaseClient";
-import AdminUsersView from "./AdminUsersView";
 
 interface SupabaseUser {
   id: string;
@@ -547,7 +546,6 @@ export default function AdminPanel({ onClose, onChanged, onAddQuestions, customQ
             <span>⚙️</span>
             <h2>Admin-Panel</h2>
             {modifiedCount > 0 && <span className="admin-mod-badge">{modifiedCount} geändert</span>}
-            <AdminUsersView />
           </div>
           <div className="admin-header-actions">
             {adminTab === "edit" && (
@@ -816,14 +814,11 @@ export default function AdminPanel({ onClose, onChanged, onAddQuestions, customQ
                   const displayName = user.name
                     ? user.name.charAt(0).toUpperCase() + user.name.slice(1)
                     : "?";
-                  const total = Number(user.totalQuestionsAnswerd ?? 0);
-                  const correct = Number(user.correctAnswers ?? 0);
-                // 🔥 FIX (nur Erweiterung, keine Logik kaputt)
-                  let wrong = total - correct;
-                  if (wrong < 0) wrong = 0;
-                  // 🔥 Prozent bleibt gleich, nur sauber
-                  const online = isOnline(user.lastActive);
+                  const total = user.totalQuestionsAnswerd ?? 0;
+                  const correct = user.correctAnswers ?? 0;
                   const pct = total > 0 ? Math.round((correct / total) * 100) : 0;
+                  const wrong = total - correct;
+                  const online = isOnline(user.lastActive);
                   const expanded = expandedUserId === user.id;
                   const days = user.learnDays ?? [];
 
