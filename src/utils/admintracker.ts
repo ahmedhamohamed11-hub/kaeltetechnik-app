@@ -28,15 +28,21 @@ export async function trackUserLogin(userId: string) {
   }
 }
 
+import { supabase } from "../supabaseClient";
+import { getLocalUserId } from "../supabaseUserSync";
+
 export async function trackAnswer(
-  userId: string,
   questionId: string,
   correct: boolean
 ) {
-  await supabase.from("answers").insert({
+  const userId = getLocalUserId();
+
+  if (!userId || !supabase) return;
+
+  await supabase.from("user_progress").insert({
     user_id: userId,
     question_id: questionId,
-    correct,
-    timestamp: new Date().toISOString(),
+    correct: correct,
+    created_at: new Date().toISOString(),
   });
 }
