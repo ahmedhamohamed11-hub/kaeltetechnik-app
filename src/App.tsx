@@ -829,7 +829,7 @@ export default function App() {
   useEffect(() => { localStorage.setItem("ktm_block_filter", blockFilter); }, [blockFilter]);
   useEffect(() => { localStorage.setItem("ktm_learn_tab", learnTab); }, [learnTab]);
 
-  // Startup sync + daily tracking — runs once when user is known
+// Startup sync + daily tracking — runs once when user is known
 useEffect(() => {
   if (!currentUser) return;
 
@@ -853,21 +853,33 @@ useEffect(() => {
   }).catch(() => {});
 }, [currentUser]);
 
-// 👇 NEU — komplett separat!
+// Greeting setzen (NEU – separat lassen!)
 useEffect(() => {
   if (!currentUser) return;
   setGreeting(getSmartGreeting(currentUser));
 }, [currentUser]);
 
-  // Queue progress on every answer — actual network call is throttled to 6h in the sync module
-  useEffect(() => {
-    if (!currentUser) return;
-    const cardValues = Object.values(appState.cards);
-    const correctAnswers = cardValues.reduce((s, c) => s + Math.max(0, c.seenCount - c.wrongCount), 0);
-    const totalQuestionsAnswered = correctAnswers + cardValues.reduce((s, c) => s + c.wrongCount, 0);
-    queueProgressSync({ correctAnswers, totalQuestionsAnswered, learnDays: appState.learnDays ?? [] });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [appState.cards, currentUser]);
+// Queue progress on every answer — throttled sync
+useEffect(() => {
+  if (!currentUser) return;
+
+  const cardValues = Object.values(appState.cards);
+
+  const correctAnswers = cardValues.reduce(
+    (s, c) => s + Math.max(0, c.seenCount - c.wrongCount),
+    0
+  );
+
+  const totalQuestionsAnswered =
+    correctAnswers +
+    cardValues.reduce((s, c) => s + c.wrongCount, 0);
+
+  queueProgressSync({
+    correctAnswers,
+    totalQuestionsAnswered,
+    learnDays: appState.learnDays ?? [],
+  });
+}, [appState.cards, currentUser]);
 
   // Save last active session to localStorage for instant restore on next open
   useEffect(() => {
