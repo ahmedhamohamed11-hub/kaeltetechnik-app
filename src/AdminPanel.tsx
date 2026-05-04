@@ -547,6 +547,7 @@ export default function AdminPanel({ onClose, onChanged, onAddQuestions, customQ
             <span>⚙️</span>
             <h2>Admin-Panel</h2>
             {modifiedCount > 0 && <span className="admin-mod-badge">{modifiedCount} geändert</span>}
+            <AdminUsersView />
           </div>
           <div className="admin-header-actions">
             {adminTab === "edit" && (
