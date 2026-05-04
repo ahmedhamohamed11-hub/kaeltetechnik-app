@@ -40,27 +40,82 @@ function isOnline(): boolean {
   return typeof navigator !== "undefined" ? navigator.onLine : false;
 }
 
-async function pushToSupabase(payload: SyncPayload): Promise<boolean> {
+async function updateUserProgress(userId: string, payload: SyncPayload): Promise<boolean> {
   if (!supabase) return false;
+
+  const now = new Date().toISOString();
+  const common = {
+    correctAnswers: payload.correctAnswers,
+    learnDays: payload.learnDays,
+    lastActive: now,
+  };
+
+  const { error } = await supabase
+    .from("users")
+    .update({
+      ...common,
+      totalQuestionsAnswered: payload.totalQuestionsAnswered,
+    })
+    .eq("id", userId);
+
+  if (!error) return true;
+
+  const { error: fallbackError } = await supabase
+    .from("users")
+    .update({
+      ...common,
+      totalQuestionsAnswerd: payload.totalQuestionsAnswered,
+    })
+    .eq("id", userId);
+
+  if (fallbackError) {
+    console.error("[Sync] push error:", fallbackError.message);
+    return false;
+  }
+
+  return true;
+}
+
+async function insertUser(payload: {
+  name: string;
+  firstLoginDate: string;
+  lastLoginDate: string;
+  lastActive: string;
+  totalLogins: number;
+  correctAnswers: number;
+  learnDays: string[];
+  xp: number;
+}): Promise<string | null> {
+  if (!supabase) return null;
+
+  const { data, error } = await supabase
+    .from("users")
+    .insert({ ...payload, totalQuestionsAnswered: 0 })
+    .select("id")
+    .single();
+
+  if (!error && data) return data.id;
+
+  const { data: fallbackData, error: fallbackError } = await supabase
+    .from("users")
+    .insert({ ...payload, totalQuestionsAnswerd: 0 })
+    .select("id")
+    .single();
+
+  if (fallbackError) {
+    console.error("[Supabase] insert error:", fallbackError.message, fallbackError.code);
+    return null;
+  }
+
+  return fallbackData?.id ?? null;
+}
+
+async function pushToSupabase(payload: SyncPayload): Promise<boolean> {
   const userId = getLocalUserId();
   if (!userId) return false;
 
   try {
-    const { error } = await supabase
-      .from("users")
-      .update({
-        correctAnswers: payload.correctAnswers,
-        totalQuestionsAnswered: payload.totalQuestionsAnswered,
-        learnDays: payload.learnDays,
-        lastActive: new Date().toISOString(),
-      })
-      .eq("id", userId);
-
-    if (error) {
-      console.error("[Sync] push error:", error.message);
-      return false;
-    }
-    return true;
+    return await updateUserProgress(userId, payload);
   } catch (err) {
     console.error("[Sync] unexpected error:", err);
     return false;
@@ -143,27 +198,19 @@ export async function syncUserLogin(name: string): Promise<void> {
 
       if (updateError) console.error("[Supabase] update error:", updateError.message);
     } else {
-      const payload = {
+      const insertedId = await insertUser({
         name: normalized,
         firstLoginDate: now,
         lastLoginDate: now,
         lastActive: now,
         totalLogins: 1,
-        totalQuestionsAnswered: 0,
         correctAnswers: 0,
         learnDays: [],
         xp: 0,
-      };
-      const { data: inserted, error: insertError } = await supabase
-        .from("users")
-        .insert(payload)
-        .select("id")
-        .single();
+      });
 
-      if (insertError) {
-        console.error("[Supabase] insert error:", insertError.message, insertError.code);
-      } else if (inserted) {
-        localStorage.setItem(LOCAL_USER_ID_KEY, inserted.id);
+      if (insertedId) {
+        localStorage.setItem(LOCAL_USER_ID_KEY, insertedId);
       }
     }
   } catch (err) {
