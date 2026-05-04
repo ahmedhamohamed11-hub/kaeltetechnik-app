@@ -15,7 +15,7 @@ import PruefungsvorbereitungView from "./PruefungsvorbereitungView";
 import SmartCard from "./SmartCard";
 import { useSwipe } from "./useSwipe";
 import { playCorrect, playWrong } from "./playSound";
-import { getTimeGreeting, getSmartGreeting } from "../lib/greeting";
+import { getGreeting } from "../lib/greeting";
 
 const CALC_BLOCK = "Rechenaufgaben & Berechnungen";
 const _homeRandomFraction = Math.random();
@@ -686,7 +686,7 @@ function getCurrentPeriod(): "morning" | "day" | "evening" {
 }
 
 function SplashScreen({ name }: { name: string }) {
-  const greeting = getTimeGreeting();
+  const greeting = getGreeting(name);
 
   return (
     <div className="splash-screen">
@@ -856,7 +856,7 @@ useEffect(() => {
 // Greeting setzen (NEU – separat lassen!)
 useEffect(() => {
   if (!currentUser) return;
-  setGreeting(getSmartGreeting(currentUser));
+  setGreeting(getGreeting(currentUser));
 }, [currentUser]);
 
 // Queue progress on every answer — throttled sync
