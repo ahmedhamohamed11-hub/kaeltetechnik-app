@@ -1,17 +1,13 @@
 import { supabase } from "./supabaseClient";
 
-// ── Storage Keys ────────────────────────────────────────────────────────────
-const LOCAL_USER_ID_KEY  = "supabase_user_id";
-const LAST_SYNC_KEY      = "ktm_last_sync";
-const SYNC_QUEUE_KEY     = "ktm_sync_queue";
-const DAILY_ONLINE_KEY   = "ktm_daily_online";
+const LOCAL_USER_ID_KEY = "supabase_user_id";
+const LAST_SYNC_KEY = "ktm_last_sync";
+const SYNC_QUEUE_KEY = "ktm_sync_queue";
+const DAILY_ONLINE_KEY = "ktm_daily_online";
 
-const SYNC_INTERVAL_MS = 6 * 60 * 60 * 1000; // 6 hours
-
-// ── Types ───────────────────────────────────────────────────────────────────
 export interface SyncPayload {
   correctAnswers: number;
-  totalQuestionsAnswerd: number;
+  totalQuestionsAnswered: number;
   learnDays: string[];
 }
 
@@ -20,13 +16,8 @@ interface QueueEntry {
   timestamp: number;
 }
 
-// ── Local Helpers ───────────────────────────────────────────────────────────
 export function getLocalUserId(): string | null {
   return localStorage.getItem(LOCAL_USER_ID_KEY);
-}
-
-function getLastSyncTime(): number {
-  return parseInt(localStorage.getItem(LAST_SYNC_KEY) ?? "0", 10);
 }
 
 function setLastSyncTime(): void {
@@ -49,13 +40,6 @@ function isOnline(): boolean {
   return typeof navigator !== "undefined" ? navigator.onLine : false;
 }
 
-function isReadyToSync(): boolean {
-  if (!isOnline()) return false;
-  const elapsed = Date.now() - getLastSyncTime();
-  return elapsed >= SYNC_INTERVAL_MS;
-}
-
-// ── Core Supabase Write ─────────────────────────────────────────────────────
 async function pushToSupabase(payload: SyncPayload): Promise<boolean> {
   if (!supabase) return false;
   const userId = getLocalUserId();
@@ -66,7 +50,8 @@ async function pushToSupabase(payload: SyncPayload): Promise<boolean> {
       .from("users")
       .update({
         correctAnswers: payload.correctAnswers,
-        totalQuestionsAnswerd: payload.totalQuestionsAnswerd,
+        totalQuestionsAnswered: payload.totalQuestionsAnswered,
+        learnDays: payload.learnDays,
         lastActive: new Date().toISOString(),
       })
       .eq("id", userId);
@@ -82,7 +67,6 @@ async function pushToSupabase(payload: SyncPayload): Promise<boolean> {
   }
 }
 
-// ── Flush offline queue ─────────────────────────────────────────────────────
 async function flushQueue(): Promise<void> {
   const queue = loadQueue();
   if (queue.length === 0) return;
@@ -94,15 +78,8 @@ async function flushQueue(): Promise<void> {
     saveQueue([]);
     setLastSyncTime();
   }
-  // On failure: leave in queue for next attempt
 }
 
-// ── Daily online tracking ────────────────────────────────────────────────────
-
-/**
- * Call once on app open. Records today's date locally (once per day).
- * Does not block or require network.
- */
 export function trackDailyOnline(): void {
   const today = new Date().toISOString().slice(0, 10);
   const last = localStorage.getItem(DAILY_ONLINE_KEY);
@@ -115,44 +92,25 @@ export function getTodayTracked(): boolean {
   return localStorage.getItem(DAILY_ONLINE_KEY) === today;
 }
 
-// ── Public API ──────────────────────────────────────────────────────────────
-
-/**
- * Queue a progress snapshot locally.
- * Will attempt a real sync only if online AND >= 6h since last sync.
- */
 export function queueProgressSync(payload: SyncPayload): void {
-  // Always overwrite with the latest snapshot (no need to accumulate history)
   saveQueue([{ payload, timestamp: Date.now() }]);
 
-  if (isReadyToSync()) {
+  if (isOnline()) {
     flushQueue().catch(() => {});
   }
 }
 
-/**
- * Called once on app start (or user login).
- * Syncs immediately if online and >= 6h since last sync; otherwise leaves queued.
- */
 export async function syncOnStartup(payload: SyncPayload): Promise<void> {
-  // Always persist latest snapshot to queue
   saveQueue([{ payload, timestamp: Date.now() }]);
 
   if (!isOnline()) return;
 
-  const elapsed = Date.now() - getLastSyncTime();
-  if (elapsed >= SYNC_INTERVAL_MS) {
-    await flushQueue().catch(() => {});
-  }
+  await flushQueue().catch(() => {});
 }
 
-/**
- * Login / register user in Supabase.
- * Silently skips if offline or Supabase unavailable.
- */
 export async function syncUserLogin(name: string): Promise<void> {
   if (!supabase) {
-    console.error("[Supabase] Client not initialized — check env vars.");
+    console.error("[Supabase] Client not initialized - check env vars.");
     return;
   }
   if (!isOnline()) return;
@@ -191,8 +149,10 @@ export async function syncUserLogin(name: string): Promise<void> {
         lastLoginDate: now,
         lastActive: now,
         totalLogins: 1,
-        totalQuestionsAnswerd: 0,
+        totalQuestionsAnswered: 0,
         correctAnswers: 0,
+        learnDays: [],
+        xp: 0,
       };
       const { data: inserted, error: insertError } = await supabase
         .from("users")
