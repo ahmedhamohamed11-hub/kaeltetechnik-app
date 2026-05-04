@@ -1,5 +1,4 @@
 import { supabase } from "./supabaseClient";
-import { getUserId } from "./userStorage";
 
 /* =========================
    STOP WORDS
@@ -74,74 +73,93 @@ export function validateAnswerMeaning(
 }
 
 /* =========================
-   🔥 SAVE ANSWER (FIXED)
+   🔥 SAVE ANSWER (FIXED FINAL)
 ========================= */
 export async function saveAnswer(
   questionId: string,
   result: "correct" | "wrong"
 ) {
-  if (!supabase) return;
+  try {
+    if (!supabase) return;
 
-  // User holen
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+    // ✅ User holen
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
-  if (!user) return;
+    if (!user) {
+      console.warn("⚠️ Kein eingeloggter User");
+      return;
+    }
 
-  // User ID (Fallback falls nötig)
-  const userId = user.id || getUserId();
+    const userId = user.id; // 🔥 WICHTIG FIX
 
-  // aktuellen Stand holen
-  const { data: existing, error } = await supabase
-    .from("users")
-    .select("*")
-    .eq("id", userId)
-    .single();
+    // ✅ USER holen
+    const { data: existing, error: userError } = await supabase
+      .from("users")
+      .select("*")
+      .eq("id", userId)
+      .maybeSingle();
 
-  if (error || !existing) {
-    console.error("User nicht gefunden:", error);
-    return;
-  }
+    if (userError) {
+      console.error("❌ User Fehler:", userError);
+      return;
+    }
 
-  // Werte berechnen
-  const newTotal = (existing.totalQuestionsAnswerd ?? 0) + 1;
+    // ✅ Wenn User NICHT existiert → erstellen
+    if (!existing) {
+      const { error: insertUserError } = await supabase.from("users").insert({
+        id: userId,
+        totalQuestionsAnswerd: 1,
+        correctAnswers: result === "correct" ? 1 : 0,
+        lastActive: new Date().toISOString(),
+      });
 
-  const newCorrect =
-    result === "correct"
-      ? (existing.correctAnswers ?? 0) + 1
-      : (existing.correctAnswers ?? 0);
+      if (insertUserError) {
+        console.error("❌ User Insert Fehler:", insertUserError);
+        return;
+      }
+    } else {
+      const newTotal = (existing.totalQuestionsAnswerd ?? 0) + 1;
 
-  // USER UPDATE
-  const { error: updateError } = await supabase
-    .from("users")
-    .update({
-      totalQuestionsAnswerd: newTotal,
-      correctAnswers: newCorrect,
-      lastActive: new Date().toISOString(),
-    })
-    .eq("id", userId);
+      const newCorrect =
+        result === "correct"
+          ? (existing.correctAnswers ?? 0) + 1
+          : existing.correctAnswers ?? 0;
 
-  if (updateError) {
-    console.error("Update Fehler:", updateError);
-  }
+      const { error: updateError } = await supabase
+        .from("users")
+        .update({
+          totalQuestionsAnswerd: newTotal,
+          correctAnswers: newCorrect,
+          lastActive: new Date().toISOString(),
+        })
+        .eq("id", userId);
 
-  // 🔥 PROGRESS SPEICHERN (JETZT RICHTIG!)
-  const { error: insertError } = await supabase
-    .from("user_progress")
-    .insert([
-      {
-        user_id: userId,
-        question_id: questionId,
-        correct: result === "correct",
-        result: result,
-        timestamp: new Date().toISOString(),
-      },
-    ]);
+      if (updateError) {
+        console.error("❌ Update Fehler:", updateError);
+      }
+    }
 
-  if (insertError) {
-    console.error("❌ Supabase Fehler:", insertError.message);
-  } else {
-    console.log("✅ Gespeichert:", questionId, result);
+    // ✅ PROGRESS speichern (FIXED)
+    const { error: insertError } = await supabase
+      .from("user_progress")
+      .insert([
+        {
+          user_id: userId,
+          question_id: questionId,
+          correct: result === "correct",
+          created_at: new Date().toISOString(), // 🔥 FIX
+        },
+      ]);
+
+    if (insertError) {
+      console.error("❌ Supabase Fehler:", insertError.message);
+    } else {
+      console.log("✅ Gespeichert:", questionId, result);
+    }
+
+  } catch (err) {
+    console.error("🔥 CRASH saveAnswer:", err);
   }
 }
