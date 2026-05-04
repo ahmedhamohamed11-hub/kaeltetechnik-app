@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useEffect, useState } from "react";
 import type { Question } from "./questions";
 
 interface CardState {
@@ -173,6 +173,21 @@ export default function StatsView({
   appState: AppState;
   allQs: Question[];
 }) {
+
+  const [, setRefresh] = useState(0);
+
+  useEffect(() => {
+    const refresh = () => {
+      setRefresh((r) => r + 1);
+    };
+
+    window.addEventListener("statsUpdated", refresh);
+
+    return () => {
+      window.removeEventListener("statsUpdated", refresh);
+    };
+  }, []);
+
   const stats = useMemo(() => {
     const cards = Object.values(appState.cards);
     const seen = cards.filter((c) => c.seenCount > 0);
