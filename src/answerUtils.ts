@@ -120,12 +120,23 @@ export async function saveAnswer(
         return;
       }
     } else {
-      const newTotal = (existing.totalQuestionsAnswerd ?? 0) + 1;
+     const newTotal = (existing.totalQuestionsAnswerd ?? 0) + 1;
 
-      const newCorrect =
-        result === "correct"
-          ? (existing.correctAnswers ?? 0) + 1
-          : existing.correctAnswers ?? 0;
+const newCorrect =
+  result === "correct"
+    ? (existing.correctAnswers ?? 0) + 1
+    : existing.correctAnswers ?? 0;
+
+// 🔥 XP SYSTEM
+const currentXP = existing.xp ?? 0;
+const xpChange = result === "correct" ? 10 : -2;
+const newXP = Math.max(0, currentXP + xpChange);
+
+// 🔥 LEVEL SYSTEM
+const newLevel = Math.floor(newXP / 100) + 1;
+
+// 🔥 ACCURACY
+const accuracy = newTotal > 0 ? newCorrect / newTotal : 0;
 
       const { error: updateError } = await supabase
         .from("users")
@@ -133,6 +144,11 @@ export async function saveAnswer(
           totalQuestionsAnswerd: newTotal,
           correctAnswers: newCorrect,
           lastActive: new Date().toISOString(),
+             // 🔥 NEU
+          xp: newXP,
+         level: newLevel,
+         accuracy: accuracy,
+
         })
         .eq("id", userId);
 
@@ -158,6 +174,10 @@ export async function saveAnswer(
       console.error("❌ Supabase Fehler:", insertError.message);
     } else {
       console.log("✅ Gespeichert:", questionId, result);
+       // 🔥 UI sofort updaten (wichtig!)
+setTimeout(() => {
+  window.dispatchEvent(new Event("statsUpdated"));
+}, 200);
     }
 
   } catch (err) {
