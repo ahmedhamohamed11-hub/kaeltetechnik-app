@@ -7,8 +7,29 @@ export function getOpeningGreeting(name: string) {
   return `Guten Abend ${safeName}`;
 }
 
+function getOpeningGreetingWithoutName() {
+  const hour = new Date().getHours();
+
+  if (hour < 12) return "Guten Morgen";
+  if (hour < 18) return "Guten Tag";
+  return "Guten Abend";
+}
+
+function markSplashForNextOpen() {
+  try {
+    localStorage.setItem("lastWelcomePeriod", "show-next-open");
+  } catch {}
+}
+
 export function getGreeting(name: string) {
   const safeName = name.trim() || "du";
+  const calledFromSplash = new Error().stack?.includes("SplashScreen") ?? false;
+
+  markSplashForNextOpen();
+
+  if (calledFromSplash) {
+    return getOpeningGreetingWithoutName();
+  }
 
   const greetings = [
     "Hey",
