@@ -1049,14 +1049,16 @@ useEffect(() => {
   );
 
   function markCard(correct: boolean) {
-    if (!currentCard) return;
-    const userId = currentUser;
-   if (userId && currentCard) {
-  trackAnswer(userId, String(currentCard.id), correct);
-}
-    const today = new Date().toISOString().slice(0, 10);
+  if (!currentCard) return;
 
-    const existing = getCardState(appState, currentCard.id);
+  // 🔥 TRACK ANSWER (sauber)
+  if (currentUser && currentCard?.id !== undefined) {
+    trackAnswer(currentUser, String(currentCard.id), correct);
+  }
+
+  const today = new Date().toISOString().slice(0, 10);
+
+  const existing = getCardState(appState, currentCard.id);
     const newStreak = correct ? existing.correctStreak + 1 : 0;
     const newStatus: CardStatus =
       newStreak >= 2 ? "learned" : !correct ? "weak" : "learning";
