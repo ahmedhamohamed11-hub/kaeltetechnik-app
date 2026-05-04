@@ -5,6 +5,7 @@ import type { AdminOverrides } from "./adminOverrides";
 import type { Question } from "./questions";
 import { loadUsers, saveUsers, storageKeyForUser } from "./userStorage";
 import { supabase } from "./supabaseClient";
+import AdminUsersView from "./AdminUsersView";
 
 interface SupabaseUser {
   id: string;
