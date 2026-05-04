@@ -1053,7 +1053,7 @@ useEffect(() => {
 
   // 🔥 TRACK ANSWER (sauber)
   if (currentUser && currentCard?.id !== undefined) {
-    trackAnswer(currentUser, String(currentCard.id), correct);
+    trackAnswer(String(currentCard.id), correct);
   }
 
   const today = new Date().toISOString().slice(0, 10);
