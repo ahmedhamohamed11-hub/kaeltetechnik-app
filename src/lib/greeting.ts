@@ -1,8 +1,9 @@
 export function getGreeting(name: string) {
-  const STORAGE_KEY = "lastGreeting";
+  const safeName = name.trim() || "du";
+  const STORAGE_KEY = `lastGreeting:${safeName.toLowerCase()}`;
 
   const now = Date.now();
-  const INTERVAL = 60 * 60 * 1000; // 🔥 1 Stunde (änderbar)
+  const INTERVAL = 60 * 60 * 1000; // 1 Stunde
 
   const saved = localStorage.getItem(STORAGE_KEY);
 
@@ -22,24 +23,23 @@ export function getGreeting(name: string) {
   else timeText = "Guten Abend";
 
   const greetings = [
-    `Servus ${name} 😄`,
-    `Grüß dich ${name} 👋`,
-    `Hallo ${name}`,
-    `Na ${name} 😎`,
-    `${timeText} ${name}`,
+    `Servus ${safeName} 😄`,
+    `Grüß dich ${safeName} 👋`,
+    `Hallo ${safeName}`,
+    `Na ${safeName} 😎`,
+    `${timeText} ${safeName}`,
   ];
 
   const extras = [
     "Bereit zum Lernen? 📚",
     "Heute wird durchgezogen 💪",
     "Zeit für Fortschritt 🚀",
-    "Hol dir Punkte 🔥",
     "Keine Ausreden 😏",
     "Du schaffst das 💯",
     "Gas geben ⚡",
     "Heute wirst du besser 👊",
     "Weiter geht’s 🔥",
-    "Fokus jetzt 🎯"
+    "Fokus jetzt 🎯",
   ];
 
   const g = greetings[Math.floor(Math.random() * greetings.length)];
