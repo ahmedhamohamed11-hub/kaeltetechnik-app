@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { allQuestions, type Question } from "./questions";
 import { queueProgressSync, syncOnStartup, trackDailyOnline } from "./supabaseUserSync";
 import { generateMCOptions, type MCOption } from "./distractor";
+import { trackAnswer } from "./utils/adminTracker";
 import ExamView from "./ExamView";
 import BrowseView from "./BrowseView";
 import CalcCard from "./CalcCard";
@@ -1049,6 +1050,10 @@ useEffect(() => {
 
   function markCard(correct: boolean) {
     if (!currentCard) return;
+    const userId = currentUser;
+   if (userId && currentCard) {
+  trackAnswer(userId, String(currentCard.id), correct);
+}
     const today = new Date().toISOString().slice(0, 10);
 
     const existing = getCardState(appState, currentCard.id);
