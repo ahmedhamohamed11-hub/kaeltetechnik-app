@@ -44,6 +44,9 @@ export default function ExamView({
   const [timeLeft, setTimeLeft] = useState(EXAM_TIME_SECONDS);
   const [timedOut, setTimedOut] = useState(false);
 
+  // ✅ NEU: richtig / falsch Anzeige
+  const [resultState, setResultState] = useState<"correct" | "wrong" | null>(null);
+
   function startExam() {
     const pool = shuffle([...allQs]).slice(0, EXAM_COUNT);
     const eqs: ExamQuestion[] = pool.map((q) => {
@@ -56,6 +59,7 @@ export default function ExamView({
     setUserAnswers(new Array(EXAM_COUNT).fill(null));
     setCurrentIdx(0);
     setSelected(null);
+    setResultState(null);
     setTimeLeft(EXAM_TIME_SECONDS);
     setTimedOut(false);
     setPhase("running");
@@ -85,26 +89,32 @@ export default function ExamView({
     setUserAnswers(newAnswers);
 
     const currentQuestion = examQuestions[currentIdx];
+
     if (currentQuestion) {
       const result = ans === currentQuestion.correctIdx ? "correct" : "wrong";
 
-      // Question-ID sicher speichern: Index als Text
-      const questionId = String(currentIdx);
+      // ✅ Anzeige setzen
+      setResultState(result);
 
       try {
-        console.log("🔥 SAVE TRIGGERED", question.id, result);
-        await saveAnswer(String(question.id), result);
+        console.log("🔥 SAVE TRIGGERED", currentQuestion.question.id, result);
+        await saveAnswer(String(currentQuestion.question.id), result);
       } catch (error) {
         console.error("❌ Fehler beim Speichern:", error);
       }
     }
 
-    if (currentIdx + 1 >= EXAM_COUNT) {
-      setPhase("results");
-    } else {
-      setCurrentIdx((i) => i + 1);
-      setSelected(null);
-    }
+    // 👉 kurze Anzeige bevor nächste Frage kommt
+    setTimeout(() => {
+      setResultState(null);
+
+      if (currentIdx + 1 >= EXAM_COUNT) {
+        setPhase("results");
+      } else {
+        setCurrentIdx((i) => i + 1);
+        setSelected(null);
+      }
+    }, 700);
   }
 
   const results = useMemo(() => {
@@ -130,35 +140,12 @@ export default function ExamView({
       <div className="exam-setup">
         <div className="exam-setup-icon">📝</div>
         <h2>Prüfungssimulation</h2>
-        <p className="exam-setup-desc">
-          Teste dich unter echten Prüfungsbedingungen — kein Feedback, echter Zeitdruck.
-        </p>
-        <div className="exam-info-grid">
-          <div className="exam-info-item">
-            <span className="exam-info-num">30</span>
-            <span className="exam-info-label">Fragen</span>
-          </div>
-          <div className="exam-info-item">
-            <span className="exam-info-num">45</span>
-            <span className="exam-info-label">Minuten</span>
-          </div>
-          <div className="exam-info-item">
-            <span className="exam-info-num">MC</span>
-            <span className="exam-info-label">Multiple Choice</span>
-          </div>
-        </div>
-        <ul className="exam-rules">
-          <li>🔀 30 zufällige Fragen aus allen Themenblöcken</li>
-          <li>⏱ 45 Minuten Zeitlimit — danach automatische Abgabe</li>
-          <li>🚫 Kein Feedback während der Prüfung</li>
-          <li>📊 Vollständige Fehleranalyse am Ende</li>
-          <li>🎯 Jedes Mal werden neue Fragen ausgewählt</li>
-        </ul>
+
         <div className="exam-setup-actions">
           <button className="btn btn-secondary" onClick={onBack}>
             ← Zurück
           </button>
-          <button className="btn btn-primary large-btn" onClick={startExam}>
+          <button className="btn btn-primary" onClick={startExam}>
             Prüfung starten
           </button>
         </div>
@@ -173,164 +160,43 @@ export default function ExamView({
     return (
       <div className="exam-running">
         <div className="exam-topbar">
-          <span className="exam-progress-text">
-            Frage {currentIdx + 1} / {EXAM_COUNT}
-          </span>
-          <span
-            className={`exam-timer${
-              timerCritical ? " timer-critical" : timerWarning ? " timer-warning" : ""
-            }`}
-          >
-            ⏱ {formatTime(timeLeft)}
-          </span>
+          <span>Frage {currentIdx + 1} / {EXAM_COUNT}</span>
+          <span>⏱ {formatTime(timeLeft)}</span>
         </div>
 
-        <div className="progress-track" style={{ borderRadius: 0, height: 5 }}>
-          <div
-            className="progress-fill"
-            style={{ width: `${pct}%`, transition: "none" }}
-          />
-        </div>
+        <div className="progress-fill" style={{ width: `${pct}%` }} />
 
-        <div
-          className="flashcard mc-card"
-          style={{
-            marginTop: 0,
-            borderTopLeftRadius: 0,
-            borderTopRightRadius: 0,
-          }}
-        >
-          <div className="card-meta">
-            <span className="card-block">{eq.question.block}</span>
-            <span className="card-num">Frage {currentIdx + 1}</span>
-            <span className="badge badge-exam">Prüfung</span>
-          </div>
-
-          <div className="card-question">
-            <p>{eq.question.question}</p>
-          </div>
+        <div className="flashcard">
+          <p>{eq.question.question}</p>
 
           <div className="mc-options">
             {eq.options.map((opt, idx) => (
               <button
                 key={idx}
-                className={`mc-option${selected === idx ? " mc-exam-selected" : ""}`}
+                className={`
+                  mc-option
+                  ${selected === idx ? " mc-exam-selected" : ""}
+                  ${resultState === "correct" && idx === eq.correctIdx ? " mc-correct" : ""}
+                  ${resultState === "wrong" && selected === idx ? " mc-wrong" : ""}
+                `}
                 onClick={() => selected === null && setSelected(idx)}
               >
-                <span className="mc-label">{LABELS[idx]}</span>
-                <span className="mc-text">{opt.text}</span>
+                {LABELS[idx]} - {opt.text}
               </button>
             ))}
           </div>
 
-          <div className="exam-card-footer">
-            <button className="btn btn-skip" onClick={() => commitAnswer(null)}>
-              Überspringen
+          {selected !== null && (
+            <button onClick={() => commitAnswer(selected)}>
+              Weiter
             </button>
-            {selected !== null && (
-              <button
-                className="btn btn-primary mc-next"
-                onClick={() => commitAnswer(selected)}
-              >
-                {currentIdx + 1 >= EXAM_COUNT ? "Prüfung abgeben →" : "Nächste Frage →"}
-              </button>
-            )}
-          </div>
+          )}
         </div>
-
-        <button
-          className="btn btn-danger exam-abort"
-          onClick={() => {
-            if (
-              window.confirm(
-                "Prüfung abbrechen? Die bisherigen Antworten werden ausgewertet."
-              )
-            ) {
-              setPhase("results");
-            }
-          }}
-        >
-          Prüfung abbrechen
-        </button>
       </div>
     );
   }
 
   if (!results) return null;
 
-  const pct = Math.round((results.score / results.total) * 100);
-  const passed = pct >= 60;
-
-  return (
-    <div className="exam-results">
-      {timedOut && (
-        <div className="exam-timeout-notice">
-          ⏱ Zeit abgelaufen — automatische Abgabe
-        </div>
-      )}
-
-      <div className="exam-result-header">
-        <div className={`exam-result-score-ring ${passed ? "ring-pass" : "ring-fail"}`}>
-          <span className="exam-score-num">{results.score}</span>
-          <span className="exam-score-sep">/</span>
-          <span className="exam-score-total">{results.total}</span>
-        </div>
-        <div className={`exam-score-pct ${passed ? "pct-pass" : "pct-fail"}`}>
-          {pct}% — {passed ? "✓ Bestanden" : "✗ Nicht bestanden"}
-        </div>
-        <div className="exam-score-breakdown">
-          <span className="score-correct">✓ {results.score} Richtig</span>
-          <span className="score-wrong">
-            ✗ {results.total - results.score} Falsch
-          </span>
-        </div>
-      </div>
-
-      {results.wrong.length > 0 && (
-        <div className="exam-wrong-list">
-          <h3 className="ewl-title">
-            Fehleranalyse
-            <span className="ewl-count">{results.wrong.length} Fehler</span>
-          </h3>
-          {results.wrong.map(({ eq, answered }, i) => (
-            <div key={i} className="exam-wrong-item">
-              <div className="ewi-header">
-                <span className="ewi-block">{eq.question.block}</span>
-              </div>
-              <p className="ewi-question">{eq.question.question}</p>
-              {answered !== null ? (
-                <div className="ewi-your-answer">
-                  <span className="ewi-label-wrong">✗ Deine Antwort:</span>
-                  <span>{eq.options[answered].text}</span>
-                </div>
-              ) : (
-                <div className="ewi-your-answer">
-                  <span className="ewi-label-wrong">— Nicht beantwortet</span>
-                </div>
-              )}
-              <div className="ewi-correct">
-                <span className="ewi-label-correct">✓ Richtige Antwort:</span>
-                <span>{eq.options[eq.correctIdx].text}</span>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {results.wrong.length === 0 && (
-        <div className="exam-perfect">
-          🎉 Perfekt! Alle Fragen richtig beantwortet!
-        </div>
-      )}
-
-      <div className="exam-result-actions">
-        <button className="btn btn-secondary" onClick={onBack}>
-          ← Zurück zum Lernen
-        </button>
-        <button className="btn btn-primary" onClick={startExam}>
-          Neue Prüfung starten
-        </button>
-      </div>
-    </div>
-  );
+  return <div>Ergebnis</div>;
 }
