@@ -15,6 +15,7 @@ import PruefungsvorbereitungView from "./PruefungsvorbereitungView";
 import SmartCard from "./SmartCard";
 import { useSwipe } from "./useSwipe";
 import { playCorrect, playWrong } from "./playSound";
+import { getTimeGreeting, getSmartGreeting } from "../lib/greeting";
 
 const CALC_BLOCK = "Rechenaufgaben & Berechnungen";
 const _homeRandomFraction = Math.random();
@@ -684,15 +685,9 @@ function getCurrentPeriod(): "morning" | "day" | "evening" {
   return "evening";
 }
 
-function getGreeting(): string {
-  const period = getCurrentPeriod();
-  if (period === "morning") return "Guten Morgen";
-  if (period === "day") return "Guten Tag";
-  return "Guten Abend";
-}
-
 function SplashScreen({ name }: { name: string }) {
-  const greeting = getGreeting();
+  const greeting = getTimeGreeting();
+
   return (
     <div className="splash-screen">
       <div className="splash-content">
@@ -702,7 +697,10 @@ function SplashScreen({ name }: { name: string }) {
           <span className="splash-brand-name">Kältetechnik Meister</span>
           <span className="splash-brand-sub">Lernplattform</span>
         </div>
-        <p className="splash-greeting">{greeting}, {name}</p>
+
+        <p className="splash-greeting">
+          {greeting}, {name}
+        </p>
       </div>
     </div>
   );
@@ -710,6 +708,7 @@ function SplashScreen({ name }: { name: string }) {
 
 // ── Main App ───────────────────────────────────────────────────────────────
 export default function App() {
+  const [greeting, setGreeting] = useState("");
   const [currentUser, setCurrentUser] = useState<string | null>(() => {
     const session = sessionStorage.getItem("kaeltetechnik_session");
     if (session) return session;
@@ -831,23 +830,42 @@ export default function App() {
   useEffect(() => { localStorage.setItem("ktm_learn_tab", learnTab); }, [learnTab]);
 
   // Startup sync + daily tracking — runs once when user is known
-  useEffect(() => {
-    if (!currentUser) return;
-    trackDailyOnline(); // record today's session locally (no network needed)
-    const cardValues = Object.values(appState.cards);
-    const correctAnswers = cardValues.reduce((s, c) => s + Math.max(0, c.seenCount - c.wrongCount), 0);
-    const totalQuestionsAnswerd = correctAnswers + cardValues.reduce((s, c) => s + c.wrongCount, 0);
-    syncOnStartup({ correctAnswers, totalQuestionsAnswerd, learnDays: appState.learnDays ?? [] }).catch(() => {});
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentUser]);
+useEffect(() => {
+  if (!currentUser) return;
+
+  trackDailyOnline();
+
+  const cardValues = Object.values(appState.cards);
+
+  const correctAnswers = cardValues.reduce(
+    (s, c) => s + Math.max(0, c.seenCount - c.wrongCount),
+    0
+  );
+
+  const totalQuestionsAnswered =
+    correctAnswers +
+    cardValues.reduce((s, c) => s + c.wrongCount, 0);
+
+  syncOnStartup({
+    correctAnswers,
+    totalQuestionsAnswered,
+    learnDays: appState.learnDays ?? [],
+  }).catch(() => {});
+}, [currentUser]);
+
+// 👇 NEU — komplett separat!
+useEffect(() => {
+  if (!currentUser) return;
+  setGreeting(getSmartGreeting(currentUser));
+}, [currentUser]);
 
   // Queue progress on every answer — actual network call is throttled to 6h in the sync module
   useEffect(() => {
     if (!currentUser) return;
     const cardValues = Object.values(appState.cards);
     const correctAnswers = cardValues.reduce((s, c) => s + Math.max(0, c.seenCount - c.wrongCount), 0);
-    const totalQuestionsAnswerd = correctAnswers + cardValues.reduce((s, c) => s + c.wrongCount, 0);
-    queueProgressSync({ correctAnswers, totalQuestionsAnswerd, learnDays: appState.learnDays ?? [] });
+    const totalQuestionsAnswered = correctAnswers + cardValues.reduce((s, c) => s + c.wrongCount, 0);
+    queueProgressSync({ correctAnswers, totalQuestionsAnswered, learnDays: appState.learnDays ?? [] });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [appState.cards, currentUser]);
 
@@ -1491,7 +1509,7 @@ export default function App() {
                     {/* Welcome banner */}
                     <div className={`welcome-banner${showWelcomeBanner ? " welcome-banner--visible" : ""}`}>
                       <span className="welcome-banner-text">
-                        Willkommen, <strong>{currentUser ?? "User"}</strong> 👋
+                         {greeting} 👋
                       </span>
                       <button className="welcome-banner-close" onClick={() => setShowWelcomeBanner(false)}>✕</button>
                     </div>
