@@ -1,12 +1,3 @@
-export function getOpeningGreeting(name: string) {
-  const safeName = name.trim() || "du";
-  const hour = new Date().getHours();
-
-  if (hour < 12) return `Guten Morgen ${safeName}`;
-  if (hour < 18) return `Guten Tag ${safeName}`;
-  return `Guten Abend ${safeName}`;
-}
-
 function getOpeningGreetingWithoutName() {
   const hour = new Date().getHours();
 
@@ -31,13 +22,6 @@ export function getGreeting(name: string) {
     return getOpeningGreetingWithoutName();
   }
 
-  const greetings = [
-    "Hey",
-    "Grüße",
-    "Servus",
-    "Hallo",
-  ];
-
   const motivations = [
     "bereit zum Lernen? 📚",
     "heute wird durchgezogen 💪",
@@ -50,8 +34,7 @@ export function getGreeting(name: string) {
     "Fokus jetzt 🎯",
   ];
 
-  const greeting = greetings[Math.floor(Math.random() * greetings.length)];
   const motivation = motivations[Math.floor(Math.random() * motivations.length)];
 
-  return `${greeting} ${safeName} – ${motivation}`;
+  return `${safeName} – ${motivation}`;
 }
