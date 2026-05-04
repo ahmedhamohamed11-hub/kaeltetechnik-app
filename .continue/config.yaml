@@ -3,7 +3,6 @@ version: 1.0.0
 schema: v1
 
 models:
-  - title: gemini Flash
-    provider: gemini
-    model: gemini-1.5-flash
-    apikey: AIzaSyBM9OwZkN6VS9fo0u3PnZ2X8hU6nd1pcC8
+  - title: Mistral Local
+    provider: ollama
+    model: mistral
