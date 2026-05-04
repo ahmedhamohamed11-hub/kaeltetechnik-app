@@ -44,16 +44,13 @@ async function updateUserProgress(userId: string, payload: SyncPayload): Promise
   if (!supabase) return false;
 
   const now = new Date().toISOString();
-  const common = {
-    correctAnswers: payload.correctAnswers,
-    learnDays: payload.learnDays,
-    lastActive: now,
-  };
 
   const { error } = await supabase
     .from("users")
     .update({
-      ...common,
+      correctAnswers: payload.correctAnswers,
+      learnDays: payload.learnDays,
+      lastActive: now,
       totalQuestionsAnswered: payload.totalQuestionsAnswered,
     })
     .eq("id", userId);
@@ -63,7 +60,9 @@ async function updateUserProgress(userId: string, payload: SyncPayload): Promise
   const { error: fallbackError } = await supabase
     .from("users")
     .update({
-      ...common,
+      correctAnswers: payload.correctAnswers,
+      learnDays: payload.learnDays,
+      lastActive: now,
       totalQuestionsAnswerd: payload.totalQuestionsAnswered,
     })
     .eq("id", userId);
@@ -77,6 +76,7 @@ async function updateUserProgress(userId: string, payload: SyncPayload): Promise
 }
 
 async function insertUser(payload: {
+  id: string;
   name: string;
   firstLoginDate: string;
   lastLoginDate: string;
@@ -90,7 +90,11 @@ async function insertUser(payload: {
 
   const { data, error } = await supabase
     .from("users")
-    .insert({ ...payload, totalQuestionsAnswered: 0 })
+    .insert({
+      ...payload,
+      totalQuestionsAnswered: 0,
+      totalQuestionsAnswerd: 0,
+    })
     .select("id")
     .single();
 
@@ -98,7 +102,10 @@ async function insertUser(payload: {
 
   const { data: fallbackData, error: fallbackError } = await supabase
     .from("users")
-    .insert({ ...payload, totalQuestionsAnswerd: 0 })
+    .insert({
+      ...payload,
+      totalQuestionsAnswerd: 0,
+    })
     .select("id")
     .single();
 
@@ -171,13 +178,13 @@ export async function syncUserLogin(name: string): Promise<void> {
   if (!isOnline()) return;
 
   const now = new Date().toISOString();
-  const normalized = name.trim().toLowerCase();
+  const trimmedName = name.trim();
 
   try {
     const { data: existing, error: fetchError } = await supabase
       .from("users")
       .select("id, totalLogins")
-      .eq("name", normalized)
+      .ilike("name", trimmedName)
       .maybeSingle();
 
     if (fetchError) {
@@ -187,6 +194,7 @@ export async function syncUserLogin(name: string): Promise<void> {
 
     if (existing) {
       localStorage.setItem(LOCAL_USER_ID_KEY, existing.id);
+
       const { error: updateError } = await supabase
         .from("users")
         .update({
@@ -198,8 +206,11 @@ export async function syncUserLogin(name: string): Promise<void> {
 
       if (updateError) console.error("[Supabase] update error:", updateError.message);
     } else {
-      const insertedId = await insertUser({
-        name: normalized,
+      const insertedId = crypto.randomUUID();
+
+      const id = await insertUser({
+        id: insertedId,
+        name: trimmedName,
         firstLoginDate: now,
         lastLoginDate: now,
         lastActive: now,
@@ -209,8 +220,8 @@ export async function syncUserLogin(name: string): Promise<void> {
         xp: 0,
       });
 
-      if (insertedId) {
-        localStorage.setItem(LOCAL_USER_ID_KEY, insertedId);
+      if (id) {
+        localStorage.setItem(LOCAL_USER_ID_KEY, id);
       }
     }
   } catch (err) {
