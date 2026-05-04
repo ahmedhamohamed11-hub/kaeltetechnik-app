@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { allQuestions, type Question } from "./questions";
 import { queueProgressSync, syncOnStartup, trackDailyOnline } from "./supabaseUserSync";
 import { generateMCOptions, type MCOption } from "./distractor";
-import { trackAnswer } from "./utils/adminTracker.ts";
+import { trackAnswer } from "./utils/admintracker";
 import ExamView from "./ExamView";
 import BrowseView from "./BrowseView";
 import CalcCard from "./CalcCard";
