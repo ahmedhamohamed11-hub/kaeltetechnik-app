@@ -5,4 +5,5 @@ schema: v1
 models:
   - title: Mistral Local
     provider: ollama
-    model: mistral
+    model: mistral:latest
+    apibase: http://127.0.0.1:11434
