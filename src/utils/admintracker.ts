@@ -2,7 +2,7 @@ import { supabase } from "../supabaseClient";
 import { getLocalUserId } from "../supabaseUserSync";
 
 /* =========================
-   🔥 TRACK ANSWER (FINAL CLEAN)
+   🔥 TRACK ANSWER (FINAL)
 ========================= */
 export async function trackAnswer(
   questionId: string,
@@ -14,7 +14,7 @@ export async function trackAnswer(
     const userId = getLocalUserId();
 
     if (!userId) {
-      console.warn("⚠️ Kein User gefunden (localStorage)");
+      console.warn("⚠️ Kein User gefunden");
       return;
     }
 
@@ -28,12 +28,9 @@ export async function trackAnswer(
       });
 
     if (error) {
-      console.error("❌ Fehler beim Speichern:", error.message);
-    } else {
-      console.log("✅ Answer gespeichert:", questionId, correct);
+      console.error("❌ Fehler:", error.message);
     }
-
   } catch (err) {
-    console.error("🔥 trackAnswer Crash:", err);
+    console.error("🔥 Crash:", err);
   }
 }
