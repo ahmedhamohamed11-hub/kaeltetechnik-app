@@ -16,7 +16,6 @@ import SmartCard from "./SmartCard";
 import { useSwipe } from "./useSwipe";
 import { playCorrect, playWrong } from "./playSound";
 import { getGreeting } from "./lib/greeting";
-import { useEffect, useState } from "react";
 
 const CALC_BLOCK = "Rechenaufgaben & Berechnungen";
 const _homeRandomFraction = Math.random();
@@ -708,8 +707,7 @@ function SplashScreen({ name }: { name: string }) {
 }
 
 // ── Main App ───────────────────────────────────────────────────────────────
-export default function App() {
-  const [greeting, setGreeting] = useState("");
+  export default function App() {
   const [currentUser, setCurrentUser] = useState<string | null>(() => {
     const session = sessionStorage.getItem("kaeltetechnik_session");
     if (session) return session;
@@ -722,7 +720,10 @@ export default function App() {
   });
 
   const storageKey = currentUser ? storageKeyForUser(currentUser) : "kaeltetechnik_v1";
-
+useEffect(() => {
+  if (!currentUser) return;
+  setAppState(loadState(storageKeyForUser(currentUser)));
+}, [currentUser]);
   const [showAdmin, setShowAdmin] = useState(false);
   const [adminVersion, setAdminVersion] = useState(0);
   const [showResetModal, setShowResetModal] = useState(false);
@@ -855,11 +856,6 @@ useEffect(() => {
   syncOnStartup(progressPayload).catch(() => {});
 }, [currentUser]);
 
-// Greeting setzen (NEU – separat lassen!)
-useEffect(() => {
-  if (!currentUser) return;
-  setGreeting(getGreeting(currentUser));
-}, [currentUser]);
 
 // Queue progress on every answer — throttled sync
 useEffect(() => {
@@ -1157,14 +1153,12 @@ useEffect(() => {
     setShowLogoutConfirm(true);
   }
 
-  function confirmLogout() {
-    localStorage.removeItem("name");
-    localStorage.removeItem("lastWelcomePeriod");
-    sessionStorage.removeItem("kaeltetechnik_session");
-    setCurrentUser(null);
-    setSessionStarted(false);
-    setShowLogoutConfirm(false);
-  }
+function confirmLogout() {
+  localStorage.removeItem("name");
+  sessionStorage.removeItem("kaeltetechnik_session");
+  setCurrentUser(null);
+  setAppState({ cards: {}, customQuestions: [] }); // 👈 wichtig
+}
 
   function handleRootTouchStart(e: React.TouchEvent) {
     const x = e.touches[0].clientX;
@@ -1513,7 +1507,7 @@ useEffect(() => {
                     {/* Welcome banner */}
                     <div className={`welcome-banner${showWelcomeBanner ? " welcome-banner--visible" : ""}`}>
                       <span className="welcome-banner-text">
-                         {greeting} 👋
+                         {getGreeting(currentUser)} 👋
                       </span>
                       <button className="welcome-banner-close" onClick={() => setShowWelcomeBanner(false)}>✕</button>
                     </div>
