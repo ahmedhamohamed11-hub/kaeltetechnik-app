@@ -1128,7 +1128,7 @@ export default function App() {
     }));
   }
 
-  function handleLogin(name: string) {
+function handleLogin(name: string) {
     sessionRestoredForRef.current = null;
     localStorage.setItem("name", name);
     sessionStorage.setItem("kaeltetechnik_session", name);
@@ -1139,8 +1139,9 @@ export default function App() {
     setSessionStarted(false);
     setAppView("learn");
     setShowSplash(true);
+    setShowLogoutConfirm(false); // ← Hier hinzufügen
     setTimeout(() => setShowSplash(false), 1600);
-  }
+}
 
   function handleLogout() {
     setShowUserMenu(false);
