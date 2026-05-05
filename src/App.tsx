@@ -1068,7 +1068,7 @@ function markCard(correct: boolean) {
   };
   setAppState({ ...appState, learnDays, cards: newCards });
 
-  // ─── Fortschritt in Supabase speichern ──────────────────────────────
+  // ─── Fortschritt in Supabase speichern (angepasst an deine Tabelle) ─────
   const allCards = Object.values(newCards);
   const totalQuestionsAnswered = allCards.reduce((sum, c) => sum + c.seenCount, 0);
   const correctAnswers = allCards.reduce(
@@ -1081,7 +1081,7 @@ function markCard(correct: boolean) {
     supabase
       .from("users")
       .update({
-        totalQuestionsAnswered: totalQuestionsAnswered,
+        totalQuestionsAn: totalQuestionsAnswered,   // ← dein Spaltenname
         correctAnswers: correctAnswers,
         accuracy: accuracy,
         lastActive: new Date().toISOString(),
@@ -1091,7 +1091,7 @@ function markCard(correct: boolean) {
       .then(({ error }) => error && console.warn("Supabase update error:", error));
   }
 
-  // ─── Drill- / Session-Logik (unverändert) ──────────────────────────
+  // ─── Drill- / Session-Logik (bleibt wie gehabt) ──────────────────────────
   if (isDrillMode) {
     const allDone = drillInitialIds.every(
       (id) => (newCards[id]?.status ?? "unseen") === "learned"
