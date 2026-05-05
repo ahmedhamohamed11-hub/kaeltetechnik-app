@@ -9,31 +9,28 @@ import { deleteAdminUser, fetchAdminUsers, subscribeToAdminUsers, type AdminUser
 
 function formatDate(iso: string | null): string {
   if (!iso) return "—";
-  const d = new Date(iso);
-  return (
-    d.toLocaleDateString("de-DE", { 
-      day: "2-digit", 
-      month: "2-digit", 
-      year: "numeric", 
-      timeZone: "Europe/Berlin" 
-    }) +
-    " " +
-    d.toLocaleTimeString("de-DE", { 
-      hour: "2-digit", 
-      minute: "2-digit", 
-      timeZone: "Europe/Berlin" 
-    })
-  );
+  const date = new Date(iso);
+  const formatter = new Intl.DateTimeFormat('de-DE', {
+    timeZone: 'Europe/Berlin',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+  return formatter.format(date);
 }
 
 function formatDateShort(iso: string | null): string {
   if (!iso) return "—";
-  return new Date(iso).toLocaleDateString("de-DE", { 
-    day: "2-digit", 
-    month: "2-digit", 
-    year: "numeric", 
-    timeZone: "Europe/Berlin" 
+  const date = new Date(iso);
+  const formatter = new Intl.DateTimeFormat('de-DE', {
+    timeZone: 'Europe/Berlin',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
   });
+  return formatter.format(date);
 }
 
 function isOnline(lastActive: string | null): boolean {
