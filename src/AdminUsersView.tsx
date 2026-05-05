@@ -1,88 +1,87 @@
 import { useEffect, useState } from "react";
 import { supabase } from "./supabaseClient";
-
-interface User {
-  id: string;
-  name: string;
-  totalLogins: number;
-  correctAnswers: number;
-  totalQuestionsAnswered: number;
-  lastActive: string;
-  firstLoginDate: string;
-}
+import { fetchAdminUsers, subscribeToAdminUsers, type AdminUser } from "./supabaseUsers";
 
 export default function AdminUsersView() {
-  const [users, setUsers] = useState<User[]>([]);
+  const [users, setUsers] = useState<AdminUser[]>([]);
   const [loading, setLoading] = useState(true);
-
-  async function loadUsers() {
-    setLoading(true);
-
-    const { data, error } = await supabase
-      .from("users")
-      .select("*")
-      .order("lastActive", { ascending: false });
-
-    if (error) {
-      console.error("❌ Fehler beim Laden:", error.message);
-    } else {
-      setUsers(data || []);
-    }
-
-    setLoading(false);
-  }
+  const [error, setError] = useState("");
 
   useEffect(() => {
-    loadUsers();
+    if (!supabase) {
+      setLoading(false);
+      setError("Supabase ist nicht konfiguriert.");
+      return;
+    }
 
-    // 🔥 LIVE UPDATES (sehr wichtig)
-    const channel = supabase
-      .channel("users-live")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "users" },
-        () => {
-          loadUsers();
-        }
-      )
-      .subscribe();
+    let active = true;
+    setLoading(true);
+
+    fetchAdminUsers()
+      .then((nextUsers) => {
+        if (active) setUsers(nextUsers);
+      })
+      .catch(() => {
+        if (active) setError("User konnten nicht geladen werden.");
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+
+    const unsubscribe = subscribeToAdminUsers(
+      (nextUsers) => {
+        if (active) setUsers(nextUsers);
+      },
+      () => {
+        if (active) setError("Realtime-Verbindung wurde unterbrochen.");
+      }
+    );
 
     return () => {
-      supabase.removeChannel(channel);
+      active = false;
+      unsubscribe();
     };
   }, []);
 
-  if (loading) return <div>⏳ Lade User...</div>;
+  if (loading) return <div>Lade User...</div>;
+  if (error) return <div>{error}</div>;
 
   return (
     <div className="admin-users">
-      <h2>👤 Alle User (Live)</h2>
+      <h2>Alle User (Live)</h2>
 
       {users.length === 0 && <p>Keine User vorhanden</p>}
 
-      {users.map((u) => {
+      {users.map((user) => {
         const successRate =
-          u.totalQuestionsAnswered > 0
-            ? Math.round((u.correctAnswers / u.totalQuestionsAnswered) * 100)
+          user.totalQuestionsAnswered > 0
+            ? Math.round((user.correctAnswers / user.totalQuestionsAnswered) * 100)
             : 0;
 
         return (
-          <div key={u.id} className="admin-user-card">
+          <div key={user.id} className="admin-user-card">
             <div className="admin-user-top">
-              <strong>{u.name}</strong>
-              <span className="admin-user-id">{u.id.slice(0, 6)}</span>
+              <strong>{user.name}</strong>
+              <span className="admin-user-id">{user.id.slice(0, 6)}</span>
             </div>
 
             <div className="admin-user-stats">
-              <span>🔐 Logins: {u.totalLogins}</span>
-              <span>📊 Antworten: {u.totalQuestionsAnswered}</span>
-              <span>✅ Richtig: {u.correctAnswers}</span>
-              <span>🎯 Quote: {successRate}%</span>
+              <span>Logins: {user.totalLogins}</span>
+              <span>Antworten: {user.totalQuestionsAnswered}</span>
+              <span>Richtig: {user.correctAnswers}</span>
+              <span>Quote: {successRate}%</span>
             </div>
 
             <div className="admin-user-meta">
-              <span>🟢 Aktiv: {new Date(u.lastActive).toLocaleString()}</span>
-              <span>📅 Erstlogin: {new Date(u.firstLoginDate).toLocaleDateString()}</span>
+              <span>
+                Aktiv: {user.lastActive ? new Date(user.lastActive).toLocaleString() : "-"}
+              </span>
+              <span>
+                Erstlogin:{" "}
+                {user.firstLoginDate
+                  ? new Date(user.firstLoginDate).toLocaleDateString()
+                  : "-"}
+              </span>
             </div>
           </div>
         );

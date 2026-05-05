@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { allQuestions, type Question } from "./questions";
 import { queueProgressSync, syncOnStartup, trackDailyOnline } from "./supabaseUserSync";
 import { generateMCOptions, type MCOption } from "./distractor";
-import { trackAnswer } from "./utils/admintracker";
 import ExamView from "./ExamView";
 import BrowseView from "./BrowseView";
 import CalcCard from "./CalcCard";
@@ -768,6 +767,7 @@ export default function App() {
   });
   const splashOnMount = useRef(showSplash);
   const sessionRestoredForRef = useRef<string | null>(null);
+  const skipProgressSyncForUserRef = useRef<string | null>(null);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [hasSavedSession, setHasSavedSession] = useState(false);
@@ -799,6 +799,21 @@ export default function App() {
   }, [appState.customQuestions, adminVersion]);
 
   const streak = useMemo(() => computeStreak(appState.learnDays), [appState.learnDays]);
+
+  const progressPayload = useMemo(() => {
+    const cardValues = Object.values(appState.cards);
+    const correctAnswers = cardValues.reduce(
+      (sum, card) => sum + Math.max(0, card.seenCount - card.wrongCount),
+      0
+    );
+    const wrongAnswers = cardValues.reduce((sum, card) => sum + card.wrongCount, 0);
+
+    return {
+      correctAnswers,
+      totalQuestionsAnswered: correctAnswers + wrongAnswers,
+      learnDays: appState.learnDays ?? [],
+    };
+  }, [appState.cards, appState.learnDays]);
 
   const blocks = useMemo(() => {
     const map: Record<string, number> = {};
@@ -835,23 +850,8 @@ useEffect(() => {
   if (!currentUser) return;
 
   trackDailyOnline();
-
-  const cardValues = Object.values(appState.cards);
-
-  const correctAnswers = cardValues.reduce(
-    (s, c) => s + Math.max(0, c.seenCount - c.wrongCount),
-    0
-  );
-
-  const totalQuestionsAnswered =
-    correctAnswers +
-    cardValues.reduce((s, c) => s + c.wrongCount, 0);
-
-  syncOnStartup({
-    correctAnswers,
-    totalQuestionsAnswered,
-    learnDays: appState.learnDays ?? [],
-  }).catch(() => {});
+  skipProgressSyncForUserRef.current = currentUser;
+  syncOnStartup(progressPayload).catch(() => {});
 }, [currentUser]);
 
 // Greeting setzen (NEU – separat lassen!)
@@ -863,24 +863,13 @@ useEffect(() => {
 // Queue progress on every answer — throttled sync
 useEffect(() => {
   if (!currentUser) return;
+  if (skipProgressSyncForUserRef.current === currentUser) {
+    skipProgressSyncForUserRef.current = null;
+    return;
+  }
 
-  const cardValues = Object.values(appState.cards);
-
-  const correctAnswers = cardValues.reduce(
-    (s, c) => s + Math.max(0, c.seenCount - c.wrongCount),
-    0
-  );
-
-  const totalQuestionsAnswered =
-    correctAnswers +
-    cardValues.reduce((s, c) => s + c.wrongCount, 0);
-
-  queueProgressSync({
-    correctAnswers,
-    totalQuestionsAnswered,
-    learnDays: appState.learnDays ?? [],
-  });
-}, [appState.cards, currentUser]);
+  queueProgressSync(progressPayload);
+}, [progressPayload, currentUser]);
 
   // Save last active session to localStorage for instant restore on next open
   useEffect(() => {
@@ -1050,11 +1039,6 @@ useEffect(() => {
 
   function markCard(correct: boolean) {
   if (!currentCard) return;
-
-  // 🔥 TRACK ANSWER (sauber)
-  if (currentUser && currentCard?.id !== undefined) {
-    trackAnswer(String(currentCard.id), correct);
-  }
 
   const today = new Date().toISOString().slice(0, 10);
 

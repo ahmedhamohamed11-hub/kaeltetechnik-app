@@ -1,30 +1,33 @@
 import { useState } from "react";
-import { loadUsers, saveUsers } from "./userStorage";
 import { syncUserLogin } from "./supabaseUserSync";
+import { loadUsers, saveUsers } from "./userStorage";
+
 export { storageKeyForUser } from "./userStorage";
 
 export default function LoginScreen({ onLogin }: { onLogin: (name: string) => void }) {
   const [name, setName] = useState("");
   const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    const trimName = name.trim();
-    if (!trimName) {
+
+    const trimmedName = name.trim();
+    if (!trimmedName) {
       setError("Bitte deinen Namen eingeben.");
       return;
     }
 
-    const db = loadUsers();
-    if (db[trimName]) {
-      db[trimName].uses += 1;
-    } else {
-      db[trimName] = { uses: 1 };
-    }
+    setSubmitting(true);
+    setError("");
 
+    const db = loadUsers();
+    db[trimmedName] = { uses: (db[trimmedName]?.uses ?? 0) + 1 };
     saveUsers(db);
-    syncUserLogin(trimName).catch(() => {});
-    onLogin(trimName);
+
+    await syncUserLogin(trimmedName).catch(() => {});
+    onLogin(trimmedName);
+    setSubmitting(false);
   }
 
   return (
@@ -33,7 +36,7 @@ export default function LoginScreen({ onLogin }: { onLogin: (name: string) => vo
         <div className="login-logo-wrap">
           <img src="/logo.png" alt="Logo" className="login-logo" />
         </div>
-        <h1 className="login-title">Kältetechnik<br />Meister-Lernprogramm</h1>
+        <h1 className="login-title">Kaeltetechnik<br />Meister-Lernprogramm</h1>
         <p className="login-subtitle">Gib deinen Namen ein und starte</p>
 
         <form className="login-form" onSubmit={handleSubmit}>
@@ -44,15 +47,19 @@ export default function LoginScreen({ onLogin }: { onLogin: (name: string) => vo
               type="text"
               placeholder="Dein Name"
               value={name}
-              onChange={(e) => { setName(e.target.value); setError(""); }}
+              onChange={(e) => {
+                setName(e.target.value);
+                setError("");
+              }}
+              disabled={submitting}
               autoFocus
             />
           </div>
 
           {error && <div className="login-error">{error}</div>}
 
-          <button className="btn btn-primary login-btn" type="submit">
-            Start →
+          <button className="btn btn-primary login-btn" type="submit" disabled={submitting}>
+            {submitting ? "Verbinde..." : "Start ->"}
           </button>
         </form>
 

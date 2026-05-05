@@ -55,20 +55,8 @@ async function updateUserProgress(userId: string, payload: SyncPayload): Promise
     })
     .eq("id", userId);
 
-  if (!error) return true;
-
-  const { error: fallbackError } = await supabase
-    .from("users")
-    .update({
-      correctAnswers: payload.correctAnswers,
-      learnDays: payload.learnDays,
-      lastActive: now,
-      totalQuestionsAnswerd: payload.totalQuestionsAnswered,
-    })
-    .eq("id", userId);
-
-  if (fallbackError) {
-    console.error("[Sync] push error:", fallbackError.message);
+  if (error) {
+    console.error("[Sync] push error:", error.message);
     return false;
   }
 
@@ -84,7 +72,6 @@ async function insertUser(payload: {
   totalLogins: number;
   correctAnswers: number;
   learnDays: string[];
-  xp: number;
 }): Promise<string | null> {
   if (!supabase) return null;
 
@@ -93,28 +80,14 @@ async function insertUser(payload: {
     .insert({
       ...payload,
       totalQuestionsAnswered: 0,
-      totalQuestionsAnswerd: 0,
     })
     .select("id")
     .single();
 
   if (!error && data) return data.id;
 
-  const { data: fallbackData, error: fallbackError } = await supabase
-    .from("users")
-    .insert({
-      ...payload,
-      totalQuestionsAnswerd: 0,
-    })
-    .select("id")
-    .single();
-
-  if (fallbackError) {
-    console.error("[Supabase] insert error:", fallbackError.message, fallbackError.code);
-    return null;
-  }
-
-  return fallbackData?.id ?? null;
+  console.error("[Supabase] insert error:", error.message, error.code);
+  return null;
 }
 
 async function pushToSupabase(payload: SyncPayload): Promise<boolean> {
@@ -217,7 +190,6 @@ export async function syncUserLogin(name: string): Promise<void> {
         totalLogins: 1,
         correctAnswers: 0,
         learnDays: [],
-        xp: 0,
       });
 
       if (id) {

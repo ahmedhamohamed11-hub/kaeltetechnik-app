@@ -5,18 +5,7 @@ import type { AdminOverrides } from "./adminOverrides";
 import type { Question } from "./questions";
 import { loadUsers, saveUsers, storageKeyForUser } from "./userStorage";
 import { supabase } from "./supabaseClient";
-
-interface SupabaseUser {
-  id: string;
-  name: string;
-  firstLoginDate: string | null;
-  lastLoginDate: string | null;
-  lastActive: string | null;
-  totalLogins: number | null;
-  totalQuestionsAnswerd: number | null;
-  correctAnswers: number | null;
-  learnDays: string[] | null;
-}
+import { deleteAdminUser, fetchAdminUsers, subscribeToAdminUsers, type AdminUser } from "./supabaseUsers";
 
 function formatDate(iso: string | null): string {
   if (!iso) return "—";
@@ -177,54 +166,45 @@ export default function AdminPanel({ onClose, onChanged, onAddQuestions, customQ
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
 
   // ── Supabase users state ──────────────────────────────────────────────────────
-  const [sbUsers, setSbUsers] = useState<SupabaseUser[]>([]);
+  const [sbUsers, setSbUsers] = useState<AdminUser[]>([]);
   const [sbLoading, setSbLoading] = useState(false);
   const [sbDeleteConfirm, setSbDeleteConfirm] = useState<string | null>(null);
   const [expandedUserId, setExpandedUserId] = useState<string | null>(null);
+  const [sbError, setSbError] = useState("");
 
   // ── Supabase users: load + realtime ─────────────────────────────────────────
   useEffect(() => {
     if (!unlocked || adminTab !== "users" || !supabase) return;
 
+    let active = true;
     setSbLoading(true);
-    supabase
-      .from("users")
-      .select("*")
-      .order("lastLoginDate", { ascending: false })
-      .then(({ data, error }) => {
-        setSbLoading(false);
-        if (error) { console.warn("[Supabase Admin] users fetch:", error.message); return; }
-        setSbUsers((data as SupabaseUser[]) ?? []);
+    setSbError("");
+
+    fetchAdminUsers()
+      .then((users) => {
+        if (active) setSbUsers(users);
+      })
+      .catch((err) => {
+        console.warn("[Supabase Admin] users fetch:", err);
+        if (active) setSbError("Nutzer konnten nicht geladen werden.");
+      })
+      .finally(() => {
+        if (active) setSbLoading(false);
       });
 
-    const channel = supabase
-      .channel("admin-users-watch")
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "users" },
-        (payload) => setSbUsers((prev) => [payload.new as SupabaseUser, ...prev])
-      )
-      .on(
-        "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "users" },
-        (payload) =>
-          setSbUsers((prev) =>
-            prev.map((u) =>
-              u.id === (payload.new as SupabaseUser).id ? (payload.new as SupabaseUser) : u
-            )
-          )
-      )
-      .on(
-        "postgres_changes",
-        { event: "DELETE", schema: "public", table: "users" },
-        (payload) =>
-          setSbUsers((prev) =>
-            prev.filter((u) => u.id !== (payload.old as { id: string }).id)
-          )
-      )
-      .subscribe();
+    const unsubscribe = subscribeToAdminUsers(
+      (users) => {
+        if (active) setSbUsers(users);
+      },
+      () => {
+        if (active) setSbError("Realtime-Verbindung wurde unterbrochen.");
+      }
+    );
 
-    return () => { channel.unsubscribe(); };
+    return () => {
+      active = false;
+      unsubscribe();
+    };
   }, [unlocked, adminTab]);
 
   const blockNames = useMemo(() => {
@@ -485,9 +465,8 @@ export default function AdminPanel({ onClose, onChanged, onAddQuestions, customQ
   }
 
   async function deleteSbUser(id: string) {
-    if (!supabase) return;
-    await supabase.from("users").delete().eq("id", id);
-    setSbUsers((prev) => prev.filter((u) => u.id !== id));
+    const deleted = await deleteAdminUser(id);
+    if (deleted) setSbUsers((prev) => prev.filter((u) => u.id !== id));
     setSbDeleteConfirm(null);
   }
 
@@ -797,6 +776,11 @@ export default function AdminPanel({ onClose, onChanged, onAddQuestions, customQ
                 <div style={{ fontSize: "2rem", marginBottom: 12 }}>⏳</div>
                 <p style={{ color: "var(--text-muted)" }}>Nutzer werden geladen…</p>
               </div>
+            ) : sbError ? (
+              <div className="admin-empty" style={{ textAlign: "center", padding: "48px 20px" }}>
+                <div style={{ fontSize: "2.5rem", marginBottom: 12 }}>!</div>
+                <p style={{ color: "var(--text-muted)" }}>{sbError}</p>
+              </div>
             ) : sbUsers.length === 0 ? (
               <div className="admin-empty" style={{ textAlign: "center", padding: "48px 20px" }}>
                 <div style={{ fontSize: "2.5rem", marginBottom: 12 }}>👥</div>
@@ -814,13 +798,13 @@ export default function AdminPanel({ onClose, onChanged, onAddQuestions, customQ
                   const displayName = user.name
                     ? user.name.charAt(0).toUpperCase() + user.name.slice(1)
                     : "?";
-                  const total = user.totalQuestionsAnswerd ?? 0;
-                  const correct = user.correctAnswers ?? 0;
+                  const total = user.totalQuestionsAnswered;
+                  const correct = user.correctAnswers;
                   const pct = total > 0 ? Math.round((correct / total) * 100) : 0;
                   const wrong = total - correct;
                   const online = isOnline(user.lastActive);
                   const expanded = expandedUserId === user.id;
-                  const days = user.learnDays ?? [];
+                  const days = user.learnDays;
 
                   return (
                     <div key={user.id} style={{ borderBottom: "1px solid var(--border)" }}>

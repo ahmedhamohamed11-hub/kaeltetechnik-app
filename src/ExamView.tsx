@@ -88,12 +88,8 @@ export default function ExamView({
     if (currentQuestion) {
       const result = ans === currentQuestion.correctIdx ? "correct" : "wrong";
 
-      // Question-ID sicher speichern: Index als Text
-      const questionId = String(currentIdx);
-
       try {
-        console.log("🔥 SAVE TRIGGERED", question.id, result);
-        await saveAnswer(String(question.id), result);
+        await saveAnswer(String(currentQuestion.question.id), result);
       } catch (error) {
         console.error("❌ Fehler beim Speichern:", error);
       }
