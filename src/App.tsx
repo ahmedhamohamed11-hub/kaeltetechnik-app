@@ -1299,7 +1299,7 @@ function markCard(correct: boolean) {
           onClick={() => { setAppView("learn"); setSessionStarted(false); }}
           title="Startseite"
         >
-          <img src="/logo.png" alt="KTM" className="header-logo" style={{ width: "60px", height: "auto" }} /
+        <img src="/logo.png" alt="KTM" className="header-logo" />
           <div className="header-title">
             <span className="header-ktm">KTM</span>
             <span className="header-brand-name">Kältetechnik Meister Lernplattform</span>
