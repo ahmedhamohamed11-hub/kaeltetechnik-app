@@ -1057,19 +1057,22 @@ function markCard(correct: boolean) {
   );
   const accuracy = totalQuestionsAnswered > 0 ? Math.round((correctAnswers / totalQuestionsAnswered) * 100) : 0;
 
-  if (currentUser) {
-    supabase
-      .from("users")
-      .update({
-        totalQuestionsAn: totalQuestionsAnswered,
-        correctAnswers: correctAnswers,
-        accuracy: accuracy,
-        lastActive: new Date().toISOString(),
-        learnDays: learnDays,
-      })
-      .eq("name", currentUser)
-      .then(({ error }) => error && console.warn("Supabase update error:", error));
-  }
+ if (currentUser) {
+  supabase
+    .from("users")
+    .update({
+      totalQuestionsAn: totalQuestionsAnswered,
+      correctAnswers: correctAnswers,
+      accuracy: accuracy,
+      lastActive: new Date().toISOString(),
+      // learnDays: learnDays,   // auskommentiert
+    })
+    .eq("name", currentUser)
+    .then(({ error, data }) => {
+      if (error) console.warn("Supabase update error:", error);
+      else console.log("Update erfolgreich", data);
+    });
+}
 
   // ─── Drill- / Session-Logik ──────────────────────────────────────────
   if (isDrillMode) {
