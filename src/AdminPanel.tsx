@@ -11,15 +11,15 @@ function formatDate(iso: string | null): string {
   if (!iso) return "—";
   const d = new Date(iso);
   return (
-    d.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" }) +
+    d.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "Europe/Berlin" }) +
     " " +
-    d.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })
+    d.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Berlin"  })
   );
 }
 
 function formatDateShort(iso: string | null): string {
   if (!iso) return "—";
-  return new Date(iso).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" });
+  return new Date(iso).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "Europe/Berlin" });
 }
 
 function isOnline(lastActive: string | null): boolean {
