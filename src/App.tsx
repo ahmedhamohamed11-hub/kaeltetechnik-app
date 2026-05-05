@@ -1061,12 +1061,12 @@ function markCard(correct: boolean) {
   supabase
     .from("users")
     .update({
-      totalQuestionsAn: totalQuestionsAnswered,
-      correctAnswers: correctAnswers,
-      accuracy: accuracy,
-      lastActive: new Date().toISOString(),
-      // learnDays: learnDays,   // auskommentiert
-    })
+  totalQuestionsAn: totalQuestionsAnswered,
+  correctAnswers: correctAnswers,
+  accuracy: accuracy,
+  lastActive: new Date().toISOString(),
+  // learnDays: learnDays,  // AUSKOMMENTIERT
+})
     .eq("name", currentUser)
     .then(({ error, data }) => {
       if (error) console.warn("Supabase update error:", error);
