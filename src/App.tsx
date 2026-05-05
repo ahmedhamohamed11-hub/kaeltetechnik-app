@@ -1081,7 +1081,7 @@ function markCard(correct: boolean) {
     supabase
       .from("users")
       .update({
-        totalQuestionsAnswered: totalQuestionsAnswered, // Achte auf Spaltenname!
+        totalQuestionsAnswered: totalQuestionsAnswered,
         correctAnswers: correctAnswers,
         accuracy: accuracy,
         lastActive: new Date().toISOString(),
