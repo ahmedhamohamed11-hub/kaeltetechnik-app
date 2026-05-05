@@ -6,20 +6,20 @@ import type { Question } from "./questions";
 import { loadUsers, saveUsers, storageKeyForUser } from "./userStorage";
 import { supabase } from "./supabaseClient";
 import { deleteAdminUser, fetchAdminUsers, subscribeToAdminUsers, type AdminUser } from "./supabaseUsers";
+import { format as formatDateFns, utcToZonedTime } from 'date-fns-tz';
 
 function formatDate(iso: string | null): string {
   if (!iso) return "—";
-  const d = new Date(iso);
-  return (
-    d.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "Europe/Berlin" }) +
-    " " +
-    d.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Berlin"  })
-  );
+  const date = new Date(iso);
+  const zonedDate = utcToZonedTime(date, 'Europe/Berlin');
+  return formatDateFns(zonedDate, 'dd.MM.yyyy HH:mm');
 }
 
 function formatDateShort(iso: string | null): string {
   if (!iso) return "—";
-  return new Date(iso).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "Europe/Berlin" });
+  const date = new Date(iso);
+  const zonedDate = utcToZonedTime(date, 'Europe/Berlin');
+  return formatDateFns(zonedDate, 'dd.MM.yyyy');
 }
 
 function isOnline(lastActive: string | null): boolean {
