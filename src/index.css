@@ -310,10 +310,10 @@ body {
 .header-brand--btn:hover { opacity: 0.82; }
 
 .header-logo {
-  height: 80px;          /* statt 64px */
-  max-height: 90px;      /* statt 68px */
+  height: 90px;          /* statt 64px */
+  max-height: 100px;      /* statt 68px */
   width: auto;
-  max-width: 90px;       /* optional anpassen */
+  max-width: 100px;       /* optional anpassen */
   object-fit: contain;
   flex-shrink: 0;
   filter: drop-shadow(0 1px 6px rgba(0,0,0,0.3));
