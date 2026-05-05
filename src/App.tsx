@@ -17,6 +17,7 @@ import SmartCard from "./SmartCard";
 import { useSwipe } from "./useSwipe";
 import { playCorrect, playWrong } from "./playSound";
 import { getGreeting } from "./lib/greeting";
+import { supabase } from "./supabaseClient";
 
 const CALC_BLOCK = "Rechenaufgaben & Berechnungen";
 const _homeRandomFraction = Math.random();
@@ -262,7 +263,6 @@ function ClassicCard({
   onMark: (correct: boolean) => void;
 }) {
   const [showAnswer, setShowAnswer] = useState(false);
-
   useEffect(() => setShowAnswer(false), [card.id]);
 
   const swipe = useSwipe({
@@ -686,7 +686,6 @@ function getCurrentPeriod(): "morning" | "day" | "evening" {
 
 function SplashScreen({ name }: { name: string }) {
   const greeting = getGreeting(name);
-
   return (
     <div className="splash-screen">
       <div className="splash-content">
@@ -696,13 +695,31 @@ function SplashScreen({ name }: { name: string }) {
           <span className="splash-brand-name">Kältetechnik Meister</span>
           <span className="splash-brand-sub">Lernplattform</span>
         </div>
-
-        <p className="splash-greeting">
-          {greeting}, {name}
-        </p>
+        <p className="splash-greeting">{greeting}, {name}</p>
       </div>
     </div>
   );
+}
+
+// ── Hilfsfunktion für Supabase-Synchronisation ──────────────────────────────
+async function syncUserStatsToSupabase(userName: string, cards: Record<number, CardState>) {
+  const cardValues = Object.values(cards);
+  const totalQuestionsAnswered = cardValues.reduce((sum, c) => sum + c.seenCount, 0);
+  const correctAnswers = cardValues.reduce(
+    (sum, c) => sum + Math.max(0, c.seenCount - c.wrongCount),
+    0
+  );
+  const accuracy = totalQuestionsAnswered > 0 ? Math.round((correctAnswers / totalQuestionsAnswered) * 100) : 0;
+
+  await supabase
+    .from("users")
+    .update({
+      totalQuestionsAnswered: totalQuestionsAnswered,
+      correctAnswers: correctAnswers,
+      accuracy: accuracy,
+      lastActive: new Date().toISOString(),
+    })
+    .eq("name", userName);
 }
 
 // ── Main App ───────────────────────────────────────────────────────────────
@@ -1051,6 +1068,12 @@ export default function App() {
     };
     setAppState({ ...appState, learnDays, cards: newCards });
 
+    // ─── Synchronisation mit Supabase (asynchron) ───────────────────────────
+    if (currentUser) {
+      syncUserStatsToSupabase(currentUser, newCards).catch(console.warn);
+    }
+    // ─── Ende Supabase ─────────────────────────────────────────────────────
+
     if (isDrillMode) {
       const allDone = drillInitialIds.every(
         (id) => (newCards[id]?.status ?? "unseen") === "learned"
@@ -1128,20 +1151,20 @@ export default function App() {
     }));
   }
 
-function handleLogin(name: string) {
-  sessionRestoredForRef.current = null;
-  localStorage.setItem("name", name);
-  sessionStorage.setItem("kaeltetechnik_session", name);
-  const period = getCurrentPeriod();
-  localStorage.setItem("lastWelcomePeriod", period);
-  setCurrentUser(name);
-  setShowLogoutConfirm(false);  // <-- Füge diese Zeile hinzu
-  setAppState(loadState(storageKeyForUser(name)));
-  setSessionStarted(false);
-  setAppView("learn");
-  setShowSplash(true);
-  setTimeout(() => setShowSplash(false), 1600);
-}
+  function handleLogin(name: string) {
+    sessionRestoredForRef.current = null;
+    localStorage.setItem("name", name);
+    sessionStorage.setItem("kaeltetechnik_session", name);
+    const period = getCurrentPeriod();
+    localStorage.setItem("lastWelcomePeriod", period);
+    setCurrentUser(name);
+    setShowLogoutConfirm(false); // ← wichtig, damit der Abmelde-Dialog nicht direkt erscheint
+    setAppState(loadState(storageKeyForUser(name)));
+    setSessionStarted(false);
+    setAppView("learn");
+    setShowSplash(true);
+    setTimeout(() => setShowSplash(false), 1600);
+  }
 
   function handleLogout() {
     setShowUserMenu(false);
