@@ -1046,27 +1046,98 @@ export default function App() {
     [allQs, appState]
   );
 
-  function markCard(correct: boolean) {
-    if (!currentCard) return;
+function markCard(correct: boolean) {
+  if (!currentCard) return;
 
-    const today = new Date().toISOString().slice(0, 10);
-    const existing = getCardState(appState, currentCard.id);
-    const newStreak = correct ? existing.correctStreak + 1 : 0;
-    const newStatus: CardStatus =
-      newStreak >= 2 ? "learned" : !correct ? "weak" : "learning";
-    const prevDays = appState.learnDays ?? [];
-    const learnDays = prevDays.includes(today) ? prevDays : [...prevDays, today];
-    const newCards = {
-      ...appState.cards,
-      [currentCard.id]: {
-        ...existing,
-        status: newStatus,
-        correctStreak: newStreak,
-        seenCount: existing.seenCount + 1,
-        wrongCount: existing.wrongCount + (correct ? 0 : 1),
-      },
-    };
-    setAppState({ ...appState, learnDays, cards: newCards });
+  const today = new Date().toISOString().slice(0, 10);
+  const existing = getCardState(appState, currentCard.id);
+  const newStreak = correct ? existing.correctStreak + 1 : 0;
+  const newStatus: CardStatus =
+    newStreak >= 2 ? "learned" : !correct ? "weak" : "learning";
+  const prevDays = appState.learnDays ?? [];
+  const learnDays = prevDays.includes(today) ? prevDays : [...prevDays, today];
+  const newCards = {
+    ...appState.cards,
+    [currentCard.id]: {
+      ...existing,
+      status: newStatus,
+      correctStreak: newStreak,
+      seenCount: existing.seenCount + 1,
+      wrongCount: existing.wrongCount + (correct ? 0 : 1),
+    },
+  };
+  setAppState({ ...appState, learnDays, cards: newCards });
+
+  // ─── NEU: Fortschritt in Supabase speichern ──────────────────────────────
+  // Gesamtstatistiken aus allen Karten berechnen
+  const allCards = Object.values(newCards);
+  const totalQuestionsAnswered = allCards.reduce((sum, c) => sum + c.seenCount, 0);
+  const correctAnswers = allCards.reduce(
+    (sum, c) => sum + Math.max(0, c.seenCount - c.wrongCount),
+    0
+  );
+  const accuracy = totalQuestionsAnswered > 0 ? Math.round((correctAnswers / totalQuestionsAnswered) * 100) : 0;
+
+  // Asynchron in Supabase speichern (ohne Blockade)
+  if (currentUser) {
+    supabase
+      .from("users")
+      .update({
+        totalQuestionsAnswered: totalQuestionsAnswered,
+        correctAnswers: correctAnswers,
+        accuracy: accuracy,
+        lastActive: new Date().toISOString(),
+        learnDays: learnDays,            // speichert die Array der Lerntage (z. B. ["2026-05-05"])
+      })
+      .eq("name", currentUser)
+      .then(({ error }) => {
+        if (error) console.warn("Supabase update error:", error);
+        else console.log("Statistiken gespeichert für", currentUser);
+      });
+  }
+  // ─── Ende NEU ───────────────────────────────────────────────────────────
+
+  // Restliche Logik (Drill, Session-Ende) bleibt unverändert
+  if (isDrillMode) {
+    const allDone = drillInitialIds.every(
+      (id) => (newCards[id]?.status ?? "unseen") === "learned"
+    );
+    if (allDone) {
+      setDrillCompleted(true);
+      setSessionStarted(false);
+      setIsDrillMode(false);
+      clearSavedSession();
+      return;
+    }
+    let nextQueue = [...sessionQueue];
+    if (!correct) {
+      nextQueue.push(currentCard);
+    }
+    const nextIdx = cardIndex + 1;
+    if (nextIdx >= nextQueue.length) {
+      const remaining = drillInitialIds
+        .filter((id) => (newCards[id]?.status ?? "unseen") !== "learned")
+        .map((id) => allQs.find((q) => q.id === id))
+        .filter((q): q is Question => q !== undefined);
+      for (let i = remaining.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [remaining[i], remaining[j]] = [remaining[j], remaining[i]];
+      }
+      setSessionQueue(remaining);
+      setCardIndex(0);
+    } else {
+      setSessionQueue(nextQueue);
+      setCardIndex(nextIdx);
+    }
+  } else {
+    if (cardIndex + 1 >= sessionQueue.length) {
+      setSessionStarted(false);
+      clearSavedSession();
+    } else {
+      setCardIndex((i) => i + 1);
+    }
+  }
+}
 
     // ─── Synchronisation mit Supabase (asynchron) ───────────────────────────
     if (currentUser) {
