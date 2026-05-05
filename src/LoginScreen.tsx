@@ -4,9 +4,10 @@ import { supabase } from '../lib/supabaseClient';
 interface User {
   id: string;
   name: string;
-  firstlogindate: string;
-  lastlogindate: string;
-  totallogins: number;
+  firstLoginDate: string;
+  lastLoginDate: string;
+  totalLogins: number;
+  totalQuestions: number;
 }
 
 interface LoginScreenProps {
@@ -19,13 +20,12 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  // Bestehende Benutzer aus Supabase laden
   useEffect(() => {
     const fetchUsers = async () => {
       setLoading(true);
       const { data, error } = await supabase
         .from('users')
-        .select('id, name, firstlogindate, lastlogindate, totallogins')
+        .select('id, name, firstLoginDate, lastLoginDate, totalLogins, totalQuestions')
         .order('name');
       if (error) {
         console.error(error);
@@ -38,7 +38,6 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
     fetchUsers();
   }, []);
 
-  // Neuen Benutzer in Supabase anlegen
   const addUser = async () => {
     const trimmed = newUserName.trim();
     if (!trimmed) return;
@@ -49,31 +48,31 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
     const now = new Date().toISOString();
     const { error } = await supabase.from('users').insert({
       name: trimmed,
-      firstlogindate: now,
-      lastlogindate: now,
-      totallogins: 1,
-      totalquestions: 0,
+      firstLoginDate: now,
+      lastLoginDate: now,
+      totalLogins: 1,
+      totalQuestions: 0,
     });
     if (error) {
       console.error(error);
       setError('Fehler beim Anlegen des Benutzers');
       return;
     }
-    // Aktualisiere die Benutzerliste
-    const { data } = await supabase.from('users').select('id, name, firstlogindate, lastlogindate, totallogins').order('name');
+    const { data } = await supabase
+      .from('users')
+      .select('id, name, firstLoginDate, lastLoginDate, totalLogins, totalQuestions')
+      .order('name');
     if (data) setUsers(data);
     setNewUserName('');
     onLogin(trimmed);
   };
 
-  // Bestehenden Benutzer auswählen (Login)
   const selectUser = async (user: User) => {
-    // Erhöhe die Login-Anzahl und aktualisiere lastlogindate
     await supabase
       .from('users')
       .update({
-        lastlogindate: new Date().toISOString(),
-        totallogins: user.totallogins + 1,
+        lastLoginDate: new Date().toISOString(),
+        totalLogins: user.totalLogins + 1,
       })
       .eq('id', user.id);
     onLogin(user.name);
@@ -89,7 +88,7 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
         {error && <div className="login-error">{error}</div>}
 
         {loading ? (
-          <div>Lade Benutzer...</div>
+          <div className="login-loading">Lade Benutzer...</div>
         ) : (
           <>
             <div className="user-list">
