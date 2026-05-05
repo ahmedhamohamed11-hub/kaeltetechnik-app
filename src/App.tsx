@@ -701,26 +701,6 @@ function SplashScreen({ name }: { name: string }) {
   );
 }
 
-// ── Hilfsfunktion für Supabase-Synchronisation ──────────────────────────────
-async function syncUserStatsToSupabase(userName: string, cards: Record<number, CardState>) {
-  const cardValues = Object.values(cards);
-  const totalQuestionsAnswered = cardValues.reduce((sum, c) => sum + c.seenCount, 0);
-  const correctAnswers = cardValues.reduce(
-    (sum, c) => sum + Math.max(0, c.seenCount - c.wrongCount),
-    0
-  );
-  const accuracy = totalQuestionsAnswered > 0 ? Math.round((correctAnswers / totalQuestionsAnswered) * 100) : 0;
-
-  await supabase
-    .from("users")
-    .update({
-      totalQuestionsAnswered: totalQuestionsAnswered,
-      correctAnswers: correctAnswers,
-      accuracy: accuracy,
-      lastActive: new Date().toISOString(),
-    })
-    .eq("name", userName);
-}
 
 // ── Main App ───────────────────────────────────────────────────────────────
 export default function App() {
@@ -1068,7 +1048,7 @@ function markCard(correct: boolean) {
   };
   setAppState({ ...appState, learnDays, cards: newCards });
 
-  // ─── Fortschritt in Supabase speichern (angepasst an deine Tabelle) ─────
+  // ─── Fortschritt in Supabase speichern ──────────────────────────────
   const allCards = Object.values(newCards);
   const totalQuestionsAnswered = allCards.reduce((sum, c) => sum + c.seenCount, 0);
   const correctAnswers = allCards.reduce(
@@ -1081,7 +1061,7 @@ function markCard(correct: boolean) {
     supabase
       .from("users")
       .update({
-        totalQuestionsAn: totalQuestionsAnswered,   // ← dein Spaltenname
+        totalQuestionsAn: totalQuestionsAnswered,
         correctAnswers: correctAnswers,
         accuracy: accuracy,
         lastActive: new Date().toISOString(),
@@ -1091,7 +1071,7 @@ function markCard(correct: boolean) {
       .then(({ error }) => error && console.warn("Supabase update error:", error));
   }
 
-  // ─── Drill- / Session-Logik (bleibt wie gehabt) ──────────────────────────
+  // ─── Drill- / Session-Logik ──────────────────────────────────────────
   if (isDrillMode) {
     const allDone = drillInitialIds.every(
       (id) => (newCards[id]?.status ?? "unseen") === "learned"
@@ -1132,53 +1112,6 @@ function markCard(correct: boolean) {
     }
   }
 }
-
-    // ─── Synchronisation mit Supabase (asynchron) ───────────────────────────
-    if (currentUser) {
-      syncUserStatsToSupabase(currentUser, newCards).catch(console.warn);
-    }
-    // ─── Ende Supabase ─────────────────────────────────────────────────────
-
-    if (isDrillMode) {
-      const allDone = drillInitialIds.every(
-        (id) => (newCards[id]?.status ?? "unseen") === "learned"
-      );
-      if (allDone) {
-        setDrillCompleted(true);
-        setSessionStarted(false);
-        setIsDrillMode(false);
-        clearSavedSession();
-        return;
-      }
-      let nextQueue = [...sessionQueue];
-      if (!correct) {
-        nextQueue.push(currentCard);
-      }
-      const nextIdx = cardIndex + 1;
-      if (nextIdx >= nextQueue.length) {
-        const remaining = drillInitialIds
-          .filter((id) => (newCards[id]?.status ?? "unseen") !== "learned")
-          .map((id) => allQs.find((q) => q.id === id))
-          .filter((q): q is Question => q !== undefined);
-        for (let i = remaining.length - 1; i > 0; i--) {
-          const j = Math.floor(Math.random() * (i + 1));
-          [remaining[i], remaining[j]] = [remaining[j], remaining[i]];
-        }
-        setSessionQueue(remaining);
-        setCardIndex(0);
-      } else {
-        setSessionQueue(nextQueue);
-        setCardIndex(nextIdx);
-      }
-    } else {
-      if (cardIndex + 1 >= sessionQueue.length) {
-        setSessionStarted(false);
-        clearSavedSession();
-      } else {
-        setCardIndex((i) => i + 1);
-      }
-    }
-  }
 
   function clearSavedSession() {
     if (!currentUser) return;
