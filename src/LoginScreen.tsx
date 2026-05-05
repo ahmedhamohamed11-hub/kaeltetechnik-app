@@ -1,125 +1,99 @@
-import React, { useState, useEffect } from 'react';
-import { supabase } from './lib/supabaseClient';
-import { syncUserLogin } from './supabaseUserSync';
+import { useState } from "react";
+import { supabase } from "./supabaseClient";
 
-interface User {
-  id: string;
-  name: string;
-  firstLoginDate: string;
-  lastLoginDate: string;
-  totalLogins: number;
-  totalQuestionsAnswered: number;
-}
+export default function LoginScreen({ onLogin }: { onLogin: (name: string) => void }) {
+  const [name, setName] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
-interface LoginScreenProps {
-  onLogin: (name: string) => void;
-}
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    const trimName = name.trim();
+    if (!trimName) {
+      setError("Bitte deinen Namen eingeben.");
+      return;
+    }
 
-export default function LoginScreen({ onLogin }: LoginScreenProps) {
-  const [users, setUsers] = useState<User[]>([]);
-  const [newUserName, setNewUserName] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+    setLoading(true);
+    setError("");
 
-  useEffect(() => {
-    const fetchUsers = async () => {
-      setLoading(true);
-      const { data, error } = await supabase
-        .from('users')
-        .select('id, name, firstLoginDate, lastLoginDate, totalLogins, totalQuestionsAnswered')
-        .order('name');
-      if (error) {
-        console.error(error);
-        setError('Benutzer konnten nicht geladen werden');
-      } else if (data) {
-        setUsers(data);
+    try {
+      // 1. Existiert der Benutzer bereits?
+      const { data: existing, error: fetchError } = await supabase
+        .from("users")
+        .select("id, totalLogins")
+        .eq("name", trimName)
+        .maybeSingle();
+
+      if (fetchError) throw fetchError;
+
+      const now = new Date().toISOString();
+
+      if (existing) {
+        // Bestehenden Benutzer aktualisieren
+        const { error: updateError } = await supabase
+          .from("users")
+          .update({
+            lastLoginDate: now,
+            totalLogins: existing.totalLogins + 1,
+          })
+          .eq("id", existing.id);
+        if (updateError) throw updateError;
+      } else {
+        // Neuen Benutzer anlegen
+        const { error: insertError } = await supabase.from("users").insert({
+          name: trimName,
+          firstLoginDate: now,
+          lastLoginDate: now,
+          totalLogins: 1,
+          totalQuestionsAnswered: 0,
+          correctAnswers: 0,
+        });
+        if (insertError) throw insertError;
       }
+
+      onLogin(trimName);
+    } catch (err) {
+      console.error(err);
+      setError("Fehler beim Anmelden. Bitte später erneut versuchen.");
+    } finally {
       setLoading(false);
-    };
-    fetchUsers();
-  }, []);
-
-  const addUser = async () => {
-    const trimmed = newUserName.trim();
-    if (!trimmed) return;
-    if (users.some(u => u.name.toLowerCase() === trimmed.toLowerCase())) {
-      setError('Benutzername existiert bereits');
-      return;
     }
-    const now = new Date().toISOString();
-    const { error } = await supabase.from('users').insert({
-      name: trimmed,
-      firstLoginDate: now,
-      lastLoginDate: now,
-      lastActive: now,
-      totalLogins: 1,
-      totalQuestionsAnswered: 0,
-      correctAnswers: 0,
-      xp: 0,
-      level: 0,
-      accuracy: 0,
-    });
-    if (error) {
-      console.error(error);
-      setError('Fehler beim Anlegen des Benutzers');
-      return;
-    }
-    // Refresh user list
-    const { data } = await supabase
-      .from('users')
-      .select('id, name, firstLoginDate, lastLoginDate, totalLogins, totalQuestionsAnswered')
-      .order('name');
-    if (data) setUsers(data);
-    setNewUserName('');
-    await syncUserLogin(trimmed);
-    onLogin(trimmed);
-  };
-
-  const selectUser = async (user: User) => {
-    await supabase
-      .from('users')
-      .update({
-        lastLoginDate: new Date().toISOString(),
-        lastActive: new Date().toISOString(),
-        totalLogins: user.totalLogins + 1,
-      })
-      .eq('id', user.id);
-    await syncUserLogin(user.name);
-    onLogin(user.name);
-  };
+  }
 
   return (
     <div className="login-screen">
-      <div className="login-container">
-        <img src="/logo.png" alt="KTM" className="login-logo" />
-        <h1>Kältetechnik Meister</h1>
-        <p className="login-subtitle">Lernplattform</p>
+      <div className="login-card">
+        <div className="login-logo-wrap">
+          <img src="/logo.png" alt="Logo" className="login-logo" />
+        </div>
+        <h1 className="login-title">Kältetechnik<br />Meister-Lernprogramm</h1>
+        <p className="login-subtitle">Gib deinen Namen ein und starte</p>
 
-        {error && <div className="login-error">{error}</div>}
+        <form className="login-form" onSubmit={handleSubmit}>
+          <div className="login-field">
+            <label className="login-label">Name</label>
+            <input
+              className="login-input"
+              type="text"
+              placeholder="Dein Name"
+              value={name}
+              onChange={(e) => { setName(e.target.value); setError(""); }}
+              autoFocus
+              disabled={loading}
+            />
+          </div>
 
-        {loading ? (
-          <div className="login-loading">Lade Benutzer...</div>
-        ) : (
-          <>
-            <div className="user-list">
-              {users.map(user => (
-                <button key={user.id} className="user-btn" onClick={() => selectUser(user)}>
-                  {user.name}
-                </button>
-              ))}
-            </div>
-            <div className="new-user-form">
-              <input
-                type="text"
-                placeholder="Neuer Benutzername"
-                value={newUserName}
-                onChange={e => setNewUserName(e.target.value)}
-                onKeyPress={e => e.key === 'Enter' && addUser()}
-              />
-              <button onClick={addUser}>Neuen Benutzer anlegen</button>
-            </div>
-          </>
-        )}
+          {error && <div className="login-error">{error}</div>}
+
+          <button className="btn btn-primary login-btn" type="submit" disabled={loading}>
+            {loading ? "Wird angemeldet…" : "Start →"}
+          </button>
+        </form>
+
+        <p className="login-hint">
+          Dein Lernfortschritt wird automatisch gespeichert.
+        </p>
       </div>
     </div>
   );
