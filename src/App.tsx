@@ -1068,8 +1068,7 @@ function markCard(correct: boolean) {
   };
   setAppState({ ...appState, learnDays, cards: newCards });
 
-  // ─── NEU: Fortschritt in Supabase speichern ──────────────────────────────
-  // Gesamtstatistiken aus allen Karten berechnen
+  // ─── Fortschritt in Supabase speichern ──────────────────────────────
   const allCards = Object.values(newCards);
   const totalQuestionsAnswered = allCards.reduce((sum, c) => sum + c.seenCount, 0);
   const correctAnswers = allCards.reduce(
@@ -1078,26 +1077,21 @@ function markCard(correct: boolean) {
   );
   const accuracy = totalQuestionsAnswered > 0 ? Math.round((correctAnswers / totalQuestionsAnswered) * 100) : 0;
 
-  // Asynchron in Supabase speichern (ohne Blockade)
   if (currentUser) {
     supabase
       .from("users")
       .update({
-        totalQuestionsAnswered: totalQuestionsAnswered,
+        totalQuestionsAnswered: totalQuestionsAnswered, // Achte auf Spaltenname!
         correctAnswers: correctAnswers,
         accuracy: accuracy,
         lastActive: new Date().toISOString(),
-        learnDays: learnDays,            // speichert die Array der Lerntage (z. B. ["2026-05-05"])
+        learnDays: learnDays,
       })
       .eq("name", currentUser)
-      .then(({ error }) => {
-        if (error) console.warn("Supabase update error:", error);
-        else console.log("Statistiken gespeichert für", currentUser);
-      });
+      .then(({ error }) => error && console.warn("Supabase update error:", error));
   }
-  // ─── Ende NEU ───────────────────────────────────────────────────────────
 
-  // Restliche Logik (Drill, Session-Ende) bleibt unverändert
+  // ─── Drill- / Session-Logik (unverändert) ──────────────────────────
   if (isDrillMode) {
     const allDone = drillInitialIds.every(
       (id) => (newCards[id]?.status ?? "unseen") === "learned"
