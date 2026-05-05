@@ -1,72 +1,116 @@
-import { useState } from "react";
-import { syncUserLogin } from "./supabaseUserSync";
-import { loadUsers, saveUsers } from "./userStorage";
+import React, { useState, useEffect } from 'react';
+import { supabase } from '../lib/supabaseClient';
 
-export { storageKeyForUser } from "./userStorage";
+interface User {
+  id: string;
+  name: string;
+  firstlogindate: string;
+  lastlogindate: string;
+  totallogins: number;
+}
 
-export default function LoginScreen({ onLogin }: { onLogin: (name: string) => void }) {
-  const [name, setName] = useState("");
-  const [error, setError] = useState("");
-  const [submitting, setSubmitting] = useState(false);
+interface LoginScreenProps {
+  onLogin: (name: string) => void;
+}
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
+export default function LoginScreen({ onLogin }: LoginScreenProps) {
+  const [users, setUsers] = useState<User[]>([]);
+  const [newUserName, setNewUserName] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
-    const trimmedName = name.trim();
-    if (!trimmedName) {
-      setError("Bitte deinen Namen eingeben.");
+  // Bestehende Benutzer aus Supabase laden
+  useEffect(() => {
+    const fetchUsers = async () => {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from('users')
+        .select('id, name, firstlogindate, lastlogindate, totallogins')
+        .order('name');
+      if (error) {
+        console.error(error);
+        setError('Benutzer konnten nicht geladen werden');
+      } else if (data) {
+        setUsers(data);
+      }
+      setLoading(false);
+    };
+    fetchUsers();
+  }, []);
+
+  // Neuen Benutzer in Supabase anlegen
+  const addUser = async () => {
+    const trimmed = newUserName.trim();
+    if (!trimmed) return;
+    if (users.some(u => u.name.toLowerCase() === trimmed.toLowerCase())) {
+      setError('Benutzername existiert bereits');
       return;
     }
+    const now = new Date().toISOString();
+    const { error } = await supabase.from('users').insert({
+      name: trimmed,
+      firstlogindate: now,
+      lastlogindate: now,
+      totallogins: 1,
+      totalquestions: 0,
+    });
+    if (error) {
+      console.error(error);
+      setError('Fehler beim Anlegen des Benutzers');
+      return;
+    }
+    // Aktualisiere die Benutzerliste
+    const { data } = await supabase.from('users').select('id, name, firstlogindate, lastlogindate, totallogins').order('name');
+    if (data) setUsers(data);
+    setNewUserName('');
+    onLogin(trimmed);
+  };
 
-    setSubmitting(true);
-    setError("");
-
-    const db = loadUsers();
-    db[trimmedName] = { uses: (db[trimmedName]?.uses ?? 0) + 1 };
-    saveUsers(db);
-
-    await syncUserLogin(trimmedName).catch(() => {});
-   localStorage.setItem("user", trimmedName);
-onLogin(trimmedName);
-    setSubmitting(false);
-  }
+  // Bestehenden Benutzer auswählen (Login)
+  const selectUser = async (user: User) => {
+    // Erhöhe die Login-Anzahl und aktualisiere lastlogindate
+    await supabase
+      .from('users')
+      .update({
+        lastlogindate: new Date().toISOString(),
+        totallogins: user.totallogins + 1,
+      })
+      .eq('id', user.id);
+    onLogin(user.name);
+  };
 
   return (
     <div className="login-screen">
-      <div className="login-card">
-        <div className="login-logo-wrap">
-          <img src="/logo.png" alt="Logo" className="login-logo" />
-        </div>
-        <h1 className="login-title">Kaeltetechnik<br />Meister-Lernprogramm</h1>
-        <p className="login-subtitle">Gib deinen Namen ein und starte</p>
+      <div className="login-container">
+        <img src="/logo.png" alt="KTM" className="login-logo" />
+        <h1>Kältetechnik Meister</h1>
+        <p className="login-subtitle">Lernplattform</p>
 
-        <form className="login-form" onSubmit={handleSubmit}>
-          <div className="login-field">
-            <label className="login-label">Name</label>
-            <input
-              className="login-input"
-              type="text"
-              placeholder="Dein Name"
-              value={name}
-              onChange={(e) => {
-                setName(e.target.value);
-                setError("");
-              }}
-              disabled={submitting}
-              autoFocus
-            />
-          </div>
+        {error && <div className="login-error">{error}</div>}
 
-          {error && <div className="login-error">{error}</div>}
-
-          <button className="btn btn-primary login-btn" type="submit" disabled={submitting}>
-            {submitting ? "Verbinde..." : "Start ->"}
-          </button>
-        </form>
-
-        <p className="login-hint">
-          Dein Lernfortschritt wird automatisch gespeichert.
-        </p>
+        {loading ? (
+          <div>Lade Benutzer...</div>
+        ) : (
+          <>
+            <div className="user-list">
+              {users.map(user => (
+                <button key={user.id} className="user-btn" onClick={() => selectUser(user)}>
+                  {user.name}
+                </button>
+              ))}
+            </div>
+            <div className="new-user-form">
+              <input
+                type="text"
+                placeholder="Neuer Benutzername"
+                value={newUserName}
+                onChange={e => setNewUserName(e.target.value)}
+                onKeyPress={e => e.key === 'Enter' && addUser()}
+              />
+              <button onClick={addUser}>Neuen Benutzer anlegen</button>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
