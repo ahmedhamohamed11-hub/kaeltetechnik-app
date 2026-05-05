@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from './lib/supabaseClient';
+import { syncUserLogin } from './supabaseUserSync';
 
 interface User {
   id: string;
@@ -70,6 +71,7 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
       .order('name');
     if (data) setUsers(data);
     setNewUserName('');
+    await syncUserLogin(trimmed);
     onLogin(trimmed);
   };
 
@@ -82,6 +84,7 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
         totalLogins: user.totalLogins + 1,
       })
       .eq('id', user.id);
+    await syncUserLogin(user.name);
     onLogin(user.name);
   };
 
