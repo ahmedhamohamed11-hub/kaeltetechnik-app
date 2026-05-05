@@ -181,93 +181,119 @@ export default function AdminPanel({ onClose, onChanged, onAddQuestions, customQ
   const [sbLoading, setSbLoading] = useState(false);
   const [sbDeleteConfirm, setSbDeleteConfirm] = useState<string | null>(null);
   const [expandedUserId, setExpandedUserId] = useState<string | null>(null);
-  const [liveAnswers, setLiveAnswers] = useState<any[]>([]);
 
   // ── Supabase users: load + realtime ─────────────────────────────────────────
-useEffect(() => {
-  if (!unlocked || adminTab !== "users" || !supabase) return;
-
-  setSbLoading(true);
-
-  supabase
-    .from("users")
-    .select("*")
-    .order("lastLoginDate", { ascending: false })
-    .then(({ data, error }) => {
-      setSbLoading(false);
-      if (error) {
-        console.warn(error.message);
-        return;
-      }
-      setSbUsers((data as SupabaseUser[]) ?? []);
-    });
-
-  const channel = supabase
-    .channel("admin-users-watch")
-    .on(
-      "postgres_changes",
-      { event: "INSERT", schema: "public", table: "users" },
-      (payload) => setSbUsers((prev) => [payload.new as SupabaseUser, ...prev])
-    )
-    .on(
-      "postgres_changes",
-      { event: "UPDATE", schema: "public", table: "users" },
-      (payload) =>
-        setSbUsers((prev) =>
-          prev.map((u) =>
-            u.id === (payload.new as SupabaseUser).id
-              ? (payload.new as SupabaseUser)
-              : u
-          )
-        )
-    )
-    .on(
-      "postgres_changes",
-      { event: "DELETE", schema: "public", table: "users" },
-      (payload) =>
-        setSbUsers((prev) =>
-          prev.filter((u) => u.id !== (payload.old as { id: string }).id)
-        )
-    )
-    .subscribe();
-
-  return () => {
-    channel.unsubscribe();
-  };
-}, [unlocked, adminTab]);
   useEffect(() => {
-  if (!unlocked || adminTab !== "users" || !supabase) return;
+    if (!unlocked || adminTab !== "users" || !supabase) return;
 
-  const channel = supabase
-    .channel("admin-answers-watch")
-    .on(
-      "postgres_changes",
-      {
-        event: "INSERT",
-        schema: "public",
-        table: "user_progress",
-      },
-      (payload) => {
-  const data = payload.new;
+    setSbLoading(true);
+    supabase
+      .from("users")
+      .select("*")
+      .order("lastLoginDate", { ascending: false })
+      .then(({ data, error }) => {
+        setSbLoading(false);
+        if (error) { console.warn("[Supabase Admin] users fetch:", error.message); return; }
+        setSbUsers((data as SupabaseUser[]) ?? []);
+      });
 
-  setLiveAnswers((prev) => [
-    {
-      name: data.name, // 👈 WICHTIG (falls vorhanden)
-      user_id: data.user_id, // fallback
-      question_id: data.question_id,
-      correct: data.correct,
-      created_at: data.created_at, // 👈 NICHT new Date()
-    },
-    ...prev,
-  ].slice(0, 20));
-}
-    )
-    .subscribe();
+    const channel = supabase
+      .channel("admin-users-watch")
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "users" },
+        (payload) => setSbUsers((prev) => [payload.new as SupabaseUser, ...prev])
+      )
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "users" },
+        (payload) =>
+          setSbUsers((prev) =>
+            prev.map((u) =>
+              u.id === (payload.new as SupabaseUser).id ? (payload.new as SupabaseUser) : u
+            )
+          )
+      )
+      .on(
+        "postgres_changes",
+        { event: "DELETE", schema: "public", table: "users" },
+        (payload) =>
+          setSbUsers((prev) =>
+            prev.filter((u) => u.id !== (payload.old as { id: string }).id)
+          )
+      )
+      .subscribe();
 
-  return () => {
-    channel.unsubscribe();
-  };
-}, [unlocked, adminTab]);
+    return () => { channel.unsubscribe(); };
+  }, [unlocked, adminTab]);
+
+  const blockNames = useMemo(() => {
+    const s = new Set([...allQuestions, ...customQuestions].map((q) => q.block));
+    return Array.from(s).sort();
+  }, [customQuestions]);
+
+  const blockOptions = useMemo(() => ["all", ...blockNames], [blockNames]);
+
+  const filtered = useMemo(() => {
+    return allQuestions.filter((q) => {
+      if (blockFilter !== "all" && q.block !== blockFilter) return false;
+      if (search) {
+        const lower = search.toLowerCase();
+        const ov = overrides[q.id];
+        return (
+          (ov?.question ?? q.question).toLowerCase().includes(lower) ||
+          (ov?.answer ?? q.answer).toLowerCase().includes(lower) ||
+          String(q.id).includes(lower)
+        );
+      }
+      return true;
+    });
+  }, [search, blockFilter, overrides]);
+
+  const filteredCustom = useMemo(() => {
+    return customQuestions.filter((q) => {
+      if (blockFilter !== "all" && q.block !== blockFilter) return false;
+      if (search) {
+        const lower = search.toLowerCase();
+        return (
+          q.question.toLowerCase().includes(lower) ||
+          q.answer.toLowerCase().includes(lower) ||
+          q.block.toLowerCase().includes(lower)
+        );
+      }
+      return true;
+    });
+  }, [search, blockFilter, customQuestions]);
+
+  // ── PIN login ──────────────────────────────────────────────────────────────
+  function handleAdminPinDigit(d: string) {
+    if (password.length >= 4) return;
+    const next = password + d;
+    setPassword(next);
+    setPwError("");
+    if (next.length === 4) {
+      setTimeout(() => {
+        if (next === ADMIN_PASSWORD) {
+          setUnlocked(true);
+          setPassword("");
+        } else {
+          setPinShake(true);
+          setPwError("wrong");
+          setTimeout(() => {
+            setPassword("");
+            setPinShake(false);
+            setPwError("");
+          }, 700);
+        }
+      }, 120);
+    }
+  }
+
+  function handleAdminPinDelete() {
+    setPassword((p) => p.slice(0, -1));
+    setPwError("");
+  }
+
   // ── Add single question ─────────────────────────────────────────────────────
   function handleAddSingle() {
     const q = newQ.trim();
@@ -782,7 +808,6 @@ useEffect(() => {
                   <span>{sbUsers.length} registrierte Nutzer</span>
                   <span style={{ fontSize: "0.7rem", color: "var(--text-muted)", marginLeft: "auto" }}>
                     🟢 = aktiv in letzten 5 Min · Echtzeit-Updates aktiv
-                    
                   </span>
                 </div>
                 {sbUsers.map((user) => {
@@ -814,7 +839,6 @@ useEffect(() => {
                               borderRadius: "50%", border: "2px solid var(--card-bg, #fff)",
                             }} />
                           )}
-                          
                         </div>
 
                         <div className="admin-user-info">
@@ -906,32 +930,6 @@ useEffect(() => {
                     </div>
                   );
                 })}
-                
-{/* 🔥 LIVE ANSWERS FEED */}
-<div style={{
-  marginTop: 20,
-  padding: 12,
-  borderTop: "2px solid var(--border)"
-}}>
-  <h3>🔥 Live Antworten</h3>
-
-  {liveAnswers.length === 0 ? (
-    <p style={{ color: "var(--text-muted)" }}>
-      Noch keine Antworten...
-    </p>
-  ) : (
-    liveAnswers.map((a, i) => (
-      <div key={i}>
-        <strong>{a.name || a.user_id}</strong> → Frage {a.question_id}{" "}
-        {a.correct ? "✅" : "❌"}
-        <br />
-        <span style={{ fontSize: "0.7rem" }}>
-          {new Date(a.created_at).toLocaleTimeString()}
-        </span>
-      </div>
-    ))
-  )}
-</div>
               </div>
             )}
           </div>
