@@ -1,4 +1,4 @@
-import { supabase } from "./supabaseClient";
+import { supabase } from "./lib/supabaseClient";
 
 const LOCAL_USER_ID_KEY = "supabase_user_id";
 const LAST_SYNC_KEY = "ktm_last_sync";
@@ -8,7 +8,7 @@ const DAILY_ONLINE_KEY = "ktm_daily_online";
 export interface SyncPayload {
   correctAnswers: number;
   totalQuestionsAnswered: number;
-  learnDays: string[];   // wird nicht in users gespeichert, nur lokal verwendet
+  learnDays: string[];
 }
 
 interface QueueEntry {
@@ -40,12 +40,9 @@ function isOnline(): boolean {
   return typeof navigator !== "undefined" ? navigator.onLine : false;
 }
 
-// 🔁 Nur Felder updaten, die in der Tabelle existieren
 async function updateUserProgress(userId: string, payload: SyncPayload): Promise<boolean> {
   if (!supabase) return false;
-
   const now = new Date().toISOString();
-
   const { error } = await supabase
     .from("users")
     .update({
@@ -54,7 +51,6 @@ async function updateUserProgress(userId: string, payload: SyncPayload): Promise
       totalQuestionsAnswered: payload.totalQuestionsAnswered,
     })
     .eq("id", userId);
-
   if (error) {
     console.error("[Sync] push error:", error.message);
     return false;
@@ -72,7 +68,6 @@ async function insertUser(payload: {
   correctAnswers: number;
 }): Promise<string | null> {
   if (!supabase) return null;
-
   const { data, error } = await supabase
     .from("users")
     .insert({
@@ -81,9 +76,7 @@ async function insertUser(payload: {
     })
     .select("id")
     .single();
-
   if (!error && data) return data.id;
-
   console.error("[Supabase] insert error:", error?.message, error?.code);
   return null;
 }
