@@ -7,7 +7,7 @@ interface User {
   firstLoginDate: string;
   lastLoginDate: string;
   totalLogins: number;
-  totalQuestions: number;
+  totalQuestionsAnswered: number;
 }
 
 interface LoginScreenProps {
@@ -25,7 +25,7 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
       setLoading(true);
       const { data, error } = await supabase
         .from('users')
-        .select('id, name, firstLoginDate, lastLoginDate, totalLogins, totalQuestions')
+        .select('id, name, firstLoginDate, lastLoginDate, totalLogins, totalQuestionsAnswered')
         .order('name');
       if (error) {
         console.error(error);
@@ -50,17 +50,23 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
       name: trimmed,
       firstLoginDate: now,
       lastLoginDate: now,
+      lastActive: now,
       totalLogins: 1,
-      totalQuestions: 0,
+      totalQuestionsAnswered: 0,
+      correctAnswers: 0,
+      xp: 0,
+      level: 0,
+      accuracy: 0,
     });
     if (error) {
       console.error(error);
       setError('Fehler beim Anlegen des Benutzers');
       return;
     }
+    // Refresh user list
     const { data } = await supabase
       .from('users')
-      .select('id, name, firstLoginDate, lastLoginDate, totalLogins, totalQuestions')
+      .select('id, name, firstLoginDate, lastLoginDate, totalLogins, totalQuestionsAnswered')
       .order('name');
     if (data) setUsers(data);
     setNewUserName('');
@@ -72,6 +78,7 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
       .from('users')
       .update({
         lastLoginDate: new Date().toISOString(),
+        lastActive: new Date().toISOString(),
         totalLogins: user.totalLogins + 1,
       })
       .eq('id', user.id);
