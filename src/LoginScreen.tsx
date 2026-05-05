@@ -30,21 +30,23 @@ export default function LoginScreen({ onLogin }: { onLogin: (name: string) => vo
       const now = new Date().toISOString();
 
       if (existing) {
-        // Bestehenden Benutzer aktualisieren
+        // Bestehenden Benutzer aktualisieren – MIT lastActive!
         const { error: updateError } = await supabase
           .from("users")
           .update({
             lastLoginDate: now,
+            lastActive: now,
             totalLogins: existing.totalLogins + 1,
           })
           .eq("id", existing.id);
         if (updateError) throw updateError;
       } else {
-        // Neuen Benutzer anlegen
+        // Neuen Benutzer anlegen – MIT lastActive!
         const { error: insertError } = await supabase.from("users").insert({
           name: trimName,
           firstLoginDate: now,
           lastLoginDate: now,
+          lastActive: now,
           totalLogins: 1,
           totalQuestionsAnswered: 0,
           correctAnswers: 0,
