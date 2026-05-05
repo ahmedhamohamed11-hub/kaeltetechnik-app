@@ -1060,12 +1060,12 @@ function markCard(correct: boolean) {
  if (currentUser) {
   supabase
     .from("users")
-    .update({
-  totalQuestionsAn: totalQuestionsAnswered,
+ .update({
+  totalQuestionsAnswered: totalQuestionsAnswered,   // ← hier war der Fehler
   correctAnswers: correctAnswers,
   accuracy: accuracy,
   lastActive: new Date().toISOString(),
-  // learnDays: learnDays,  // AUSKOMMENTIERT
+  // learnDays: learnDays,
 })
     .eq("name", currentUser)
     .then(({ error, data }) => {
