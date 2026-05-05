@@ -9,30 +9,34 @@ import { deleteAdminUser, fetchAdminUsers, subscribeToAdminUsers, type AdminUser
 
 function formatDate(iso: string | null): string {
   if (!iso) return "—";
-  const date = new Date(iso);
-  const formatter = new Intl.DateTimeFormat('de-DE', {
-    timeZone: 'Europe/Berlin',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
+  const d = new Date(iso);
+  // Offset für Deutschland: im Sommer +2, im Winter +1
+  const month = d.getUTCMonth(); // 0-11
+  const isSummer = month > 2 && month < 10; // April bis September
+  const offsetHours = isSummer ? 2 : 1;
+  d.setUTCHours(d.getUTCHours() + offsetHours);
+  return d.toLocaleString("de-DE", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
   });
-  return formatter.format(date);
 }
 
 function formatDateShort(iso: string | null): string {
   if (!iso) return "—";
-  const date = new Date(iso);
-  const formatter = new Intl.DateTimeFormat('de-DE', {
-    timeZone: 'Europe/Berlin',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
+  const d = new Date(iso);
+  const month = d.getUTCMonth();
+  const isSummer = month > 2 && month < 10;
+  const offsetHours = isSummer ? 2 : 1;
+  d.setUTCHours(d.getUTCHours() + offsetHours);
+  return d.toLocaleDateString("de-DE", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
   });
-  return formatter.format(date);
 }
-
 function isOnline(lastActive: string | null): boolean {
   if (!lastActive) return false;
   return Date.now() - new Date(lastActive).getTime() < 5 * 60 * 1000;
