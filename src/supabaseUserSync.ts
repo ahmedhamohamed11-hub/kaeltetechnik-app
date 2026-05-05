@@ -8,7 +8,7 @@ const DAILY_ONLINE_KEY = "ktm_daily_online";
 export interface SyncPayload {
   correctAnswers: number;
   totalQuestionsAnswered: number;
-  learnDays: string[];
+  learnDays: string[];   // wird nicht in users gespeichert, nur lokal verwendet
 }
 
 interface QueueEntry {
@@ -40,6 +40,7 @@ function isOnline(): boolean {
   return typeof navigator !== "undefined" ? navigator.onLine : false;
 }
 
+// 🔁 Nur Felder updaten, die in der Tabelle existieren
 async function updateUserProgress(userId: string, payload: SyncPayload): Promise<boolean> {
   if (!supabase) return false;
 
@@ -49,7 +50,6 @@ async function updateUserProgress(userId: string, payload: SyncPayload): Promise
     .from("users")
     .update({
       correctAnswers: payload.correctAnswers,
-      learnDays: payload.learnDays,
       lastActive: now,
       totalQuestionsAnswered: payload.totalQuestionsAnswered,
     })
@@ -59,7 +59,6 @@ async function updateUserProgress(userId: string, payload: SyncPayload): Promise
     console.error("[Sync] push error:", error.message);
     return false;
   }
-
   return true;
 }
 
@@ -71,7 +70,6 @@ async function insertUser(payload: {
   lastActive: string;
   totalLogins: number;
   correctAnswers: number;
-  learnDays: string[];
 }): Promise<string | null> {
   if (!supabase) return null;
 
@@ -86,29 +84,21 @@ async function insertUser(payload: {
 
   if (!error && data) return data.id;
 
-  console.error("[Supabase] insert error:", error.message, error.code);
+  console.error("[Supabase] insert error:", error?.message, error?.code);
   return null;
 }
 
 async function pushToSupabase(payload: SyncPayload): Promise<boolean> {
   const userId = getLocalUserId();
   if (!userId) return false;
-
-  try {
-    return await updateUserProgress(userId, payload);
-  } catch (err) {
-    console.error("[Sync] unexpected error:", err);
-    return false;
-  }
+  return await updateUserProgress(userId, payload);
 }
 
 async function flushQueue(): Promise<void> {
   const queue = loadQueue();
   if (queue.length === 0) return;
-
   const latest = queue[queue.length - 1];
   const ok = await pushToSupabase(latest.payload);
-
   if (ok) {
     saveQueue([]);
     setLastSyncTime();
@@ -129,7 +119,6 @@ export function getTodayTracked(): boolean {
 
 export function queueProgressSync(payload: SyncPayload): void {
   saveQueue([{ payload, timestamp: Date.now() }]);
-
   if (isOnline()) {
     flushQueue().catch(() => {});
   }
@@ -137,9 +126,7 @@ export function queueProgressSync(payload: SyncPayload): void {
 
 export async function syncOnStartup(payload: SyncPayload): Promise<void> {
   saveQueue([{ payload, timestamp: Date.now() }]);
-
   if (!isOnline()) return;
-
   await flushQueue().catch(() => {});
 }
 
@@ -167,7 +154,6 @@ export async function syncUserLogin(name: string): Promise<void> {
 
     if (existing) {
       localStorage.setItem(LOCAL_USER_ID_KEY, existing.id);
-
       const { error: updateError } = await supabase
         .from("users")
         .update({
@@ -176,11 +162,9 @@ export async function syncUserLogin(name: string): Promise<void> {
           totalLogins: (existing.totalLogins ?? 0) + 1,
         })
         .eq("id", existing.id);
-
       if (updateError) console.error("[Supabase] update error:", updateError.message);
     } else {
       const insertedId = crypto.randomUUID();
-
       const id = await insertUser({
         id: insertedId,
         name: trimmedName,
@@ -189,9 +173,7 @@ export async function syncUserLogin(name: string): Promise<void> {
         lastActive: now,
         totalLogins: 1,
         correctAnswers: 0,
-        learnDays: [],
       });
-
       if (id) {
         localStorage.setItem(LOCAL_USER_ID_KEY, id);
       }
