@@ -46,7 +46,7 @@ interface AppState {
   learnDays?: string[];
 }
 
-// ── Persistence ────────────────────────────────────────────────────────────
+// ── Hilfsfunktionen für localStorage (typsicher) ──────────────────────────
 function loadState(storageKey: string): AppState {
   try {
     const raw = localStorage.getItem(storageKey);
@@ -262,7 +262,6 @@ function ClassicCard({
 }) {
   const [showAnswer, setShowAnswer] = useState(false);
 
-  // Reset when card changes
   useEffect(() => setShowAnswer(false), [card.id]);
 
   const swipe = useSwipe({
@@ -323,7 +322,6 @@ function MCCard({
 }) {
   const options = useMemo(
     () => generateMCOptions(card, allQs),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [card.id]
   );
   const [selected, setSelected] = useState<number | null>(null);
@@ -424,7 +422,7 @@ function MCCard({
   );
 }
 
-// ── True / False card ──────────────────────────────────────────────────────
+// True / False card
 function TrueFalseCard({
   card,
   allQs,
@@ -497,7 +495,7 @@ function TrueFalseCard({
   );
 }
 
-// ── Freetext card ───────────────────────────────────────────────────────────
+// Freetext card
 function FreetextCard({
   card,
   cardState,
@@ -555,7 +553,7 @@ function FreetextCard({
   );
 }
 
-// ── Self-rating card ────────────────────────────────────────────────────────
+// Self-rating card
 function SelfCard({
   card,
   cardState,
@@ -603,7 +601,7 @@ function SelfCard({
   );
 }
 
-// ── Weak Blocks Panel ──────────────────────────────────────────────────────
+// Weak Blocks Panel
 function WeakBlocksPanel({
   allQs,
   appState,
@@ -677,7 +675,7 @@ function WeakBlocksPanel({
   );
 }
 
-// ── Splash Screen ──────────────────────────────────────────────────────────
+// Splash Screen
 function getCurrentPeriod(): "morning" | "day" | "evening" {
   const hour = new Date().getHours();
   if (hour >= 5 && hour < 12) return "morning";
@@ -707,7 +705,7 @@ function SplashScreen({ name }: { name: string }) {
 }
 
 // ── Main App ───────────────────────────────────────────────────────────────
-  export default function App() {
+export default function App() {
   const [currentUser, setCurrentUser] = useState<string | null>(() => {
     const session = sessionStorage.getItem("kaeltetechnik_session");
     if (session) return session;
@@ -720,24 +718,29 @@ function SplashScreen({ name }: { name: string }) {
   });
 
   const storageKey = currentUser ? storageKeyForUser(currentUser) : "kaeltetechnik_v1";
-useEffect(() => {
-  if (!currentUser) return;
-  setAppState(loadState(storageKeyForUser(currentUser)));
-}, [currentUser]);
+  const [appState, setAppState] = useState<AppState>(() => loadState(storageKey));
   const [showAdmin, setShowAdmin] = useState(false);
   const [adminVersion, setAdminVersion] = useState(0);
   const [showResetModal, setShowResetModal] = useState(false);
-  const [appState, setAppState] = useState<AppState>(() => loadState(storageKey));
   const [appView, setAppView] = useState<AppView>("learn");
-  const [learningMode, setLearningMode] = useState<LearningMode>(() =>
-    (localStorage.getItem("ktm_learning_mode") as LearningMode) || "unseen_first"
-  );
-  const [quizMode, setQuizMode] = useState<QuizMode>(() =>
-    (localStorage.getItem("ktm_quiz_mode") as QuizMode) || "classic"
-  );
-  const [filterStatus, setFilterStatus] = useState<FilterStatus>(() =>
-    (localStorage.getItem("ktm_filter_status") as FilterStatus) || "all"
-  );
+  const [learningMode, setLearningMode] = useState<LearningMode>(() => {
+    const saved = localStorage.getItem("ktm_learning_mode");
+    return saved === "all" || saved === "unseen_first" || saved === "weak_first" || saved === "learned_first" || saved === "exam_mix"
+      ? saved
+      : "unseen_first";
+  });
+  const [quizMode, setQuizMode] = useState<QuizMode>(() => {
+    const saved = localStorage.getItem("ktm_quiz_mode");
+    return saved === "classic" || saved === "mc" || saved === "tf" || saved === "freetext" || saved === "self" || saved === "smart"
+      ? saved
+      : "classic";
+  });
+  const [filterStatus, setFilterStatus] = useState<FilterStatus>(() => {
+    const saved = localStorage.getItem("ktm_filter_status");
+    return saved === "all" || saved === "unseen" || saved === "weak" || saved === "learned"
+      ? saved
+      : "all";
+  });
   const [blockFilter, setBlockFilter] = useState<string>(() =>
     localStorage.getItem("ktm_block_filter") || "all"
   );
@@ -749,7 +752,7 @@ useEffect(() => {
   const [darkMode, setDarkMode] = useState(() => {
     const saved = localStorage.getItem("kaeltetechnik_dark");
     if (saved !== null) return saved === "true";
-    return false; // light mode by default
+    return false;
   });
   const [cardIndex, setCardIndex] = useState(0);
   const [sessionQueue, setSessionQueue] = useState<Question[]>([]);
@@ -823,52 +826,44 @@ useEffect(() => {
     return Object.entries(map).sort((a, b) => a[0].localeCompare(b[0]));
   }, [allQs]);
 
+  // Persistenz & Themes
   useEffect(() => { saveState(appState, storageKey); }, [appState, storageKey]);
+  useEffect(() => { localStorage.setItem("kaeltetechnik_dark", String(darkMode)); }, [darkMode]);
   useEffect(() => {
-    localStorage.setItem("kaeltetechnik_dark", String(darkMode));
     document.documentElement.classList.toggle("dark", darkMode);
   }, [darkMode]);
-  useEffect(() => {
-    document.documentElement.classList.toggle("dark", darkMode);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-  // Auto-dismiss splash for returning users (fresh logins handle their own timeout)
-  useEffect(() => {
-    if (!splashOnMount.current) return;
-    const t = setTimeout(() => setShowSplash(false), 1600);
-    return () => clearTimeout(t);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Persist user preferences
   useEffect(() => { localStorage.setItem("ktm_quiz_mode", quizMode); }, [quizMode]);
   useEffect(() => { localStorage.setItem("ktm_learning_mode", learningMode); }, [learningMode]);
   useEffect(() => { localStorage.setItem("ktm_filter_status", filterStatus); }, [filterStatus]);
   useEffect(() => { localStorage.setItem("ktm_block_filter", blockFilter); }, [blockFilter]);
   useEffect(() => { localStorage.setItem("ktm_learn_tab", learnTab); }, [learnTab]);
 
-// Startup sync + daily tracking — runs once when user is known
-useEffect(() => {
-  if (!currentUser) return;
+  // Splash Auto-Dismiss mit Cleanup
+  useEffect(() => {
+    if (!splashOnMount.current) return;
+    const t = setTimeout(() => setShowSplash(false), 1600);
+    return () => clearTimeout(t);
+  }, []);
 
-  trackDailyOnline();
-  skipProgressSyncForUserRef.current = currentUser;
-  syncOnStartup(progressPayload).catch(() => {});
-}, [currentUser]);
+  // Startup Sync & Daily Tracking – nur wenn Benutzer bekannt
+  useEffect(() => {
+    if (!currentUser) return;
+    trackDailyOnline();
+    skipProgressSyncForUserRef.current = currentUser;
+    syncOnStartup(progressPayload).catch(() => {});
+  }, [currentUser, progressPayload]);
 
+  // Queue Progress Sync (throttled)
+  useEffect(() => {
+    if (!currentUser) return;
+    if (skipProgressSyncForUserRef.current === currentUser) {
+      skipProgressSyncForUserRef.current = null;
+      return;
+    }
+    queueProgressSync(progressPayload);
+  }, [progressPayload, currentUser]);
 
-// Queue progress on every answer — throttled sync
-useEffect(() => {
-  if (!currentUser) return;
-  if (skipProgressSyncForUserRef.current === currentUser) {
-    skipProgressSyncForUserRef.current = null;
-    return;
-  }
-
-  queueProgressSync(progressPayload);
-}, [progressPayload, currentUser]);
-
-  // Save last active session to localStorage for instant restore on next open
+  // Session speichern
   useEffect(() => {
     if (!currentUser || !sessionStarted || sessionQueue.length === 0) return;
     const key = `ktm_last_session_${currentUser.toLowerCase()}`;
@@ -879,7 +874,7 @@ useEffect(() => {
     }));
   }, [sessionStarted, cardIndex, isDrillMode, sessionQueue, currentUser]);
 
-  // Detect saved session once per user login — offer "Weiter lernen" button instead of auto-starting
+  // Session wiederherstellen (Weiter lernen)
   useEffect(() => {
     if (!currentUser || sessionRestoredForRef.current === currentUser || allQs.length === 0) return;
     sessionRestoredForRef.current = currentUser;
@@ -900,10 +895,9 @@ useEffect(() => {
         setHasSavedSession(true);
       }
     } catch {}
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUser, allQs]);
 
-  // Welcome banner — show on dashboard load, repeat every hour
+  // Willkommensbanner (stündlich)
   useEffect(() => {
     if (!currentUser) return;
     setShowWelcomeBanner(true);
@@ -957,8 +951,8 @@ useEffect(() => {
     setDrillInitialIds([]);
   }, [allQs, appState, learningMode, filterStatus, blockFilter, searchFilter]);
 
-  const startDrill = useCallback((blockFilter?: string) => {
-    const pool = blockFilter ? allQs.filter((q) => q.block === blockFilter) : allQs;
+  const startDrill = useCallback((blockFilterParam?: string) => {
+    const pool = blockFilterParam ? allQs.filter((q) => q.block === blockFilterParam) : allQs;
     const scored = pool
       .map((q) => ({ q, cs: getCardState(appState, q.id) }))
       .filter(({ cs }) => cs.wrongCount > 0 || cs.status === "weak")
@@ -1035,11 +1029,10 @@ useEffect(() => {
   );
 
   function markCard(correct: boolean) {
-  if (!currentCard) return;
+    if (!currentCard) return;
 
-  const today = new Date().toISOString().slice(0, 10);
-
-  const existing = getCardState(appState, currentCard.id);
+    const today = new Date().toISOString().slice(0, 10);
+    const existing = getCardState(appState, currentCard.id);
     const newStreak = correct ? existing.correctStreak + 1 : 0;
     const newStatus: CardStatus =
       newStreak >= 2 ? "learned" : !correct ? "weak" : "learning";
@@ -1135,7 +1128,7 @@ useEffect(() => {
   }
 
   function handleLogin(name: string) {
-    sessionRestoredForRef.current = null; // allow session restore for new user
+    sessionRestoredForRef.current = null;
     localStorage.setItem("name", name);
     sessionStorage.setItem("kaeltetechnik_session", name);
     const period = getCurrentPeriod();
@@ -1153,12 +1146,12 @@ useEffect(() => {
     setShowLogoutConfirm(true);
   }
 
-function confirmLogout() {
-  localStorage.removeItem("name");
-  sessionStorage.removeItem("kaeltetechnik_session");
-  setCurrentUser(null);
-  setAppState({ cards: {}, customQuestions: [] }); // 👈 wichtig
-}
+  function confirmLogout() {
+    localStorage.removeItem("name");
+    sessionStorage.removeItem("kaeltetechnik_session");
+    setCurrentUser(null);
+    setAppState({ cards: {}, customQuestions: [] });
+  }
 
   function handleRootTouchStart(e: React.TouchEvent) {
     const x = e.touches[0].clientX;
@@ -1171,6 +1164,7 @@ function confirmLogout() {
       edgeTouchY.current = null;
     }
   }
+
   function handleRootTouchEnd(e: React.TouchEvent) {
     if (edgeTouchX.current !== null) {
       const endX = e.changedTouches[0].clientX;
@@ -1197,12 +1191,12 @@ function confirmLogout() {
       onTouchStart={handleRootTouchStart}
       onTouchEnd={handleRootTouchEnd}
     >
-      {/* ── Sidebar Backdrop ── */}
+      {/* Sidebar Backdrop */}
       {sidebarOpen && (
         <div className="sidebar-backdrop" onClick={() => setSidebarOpen(false)} />
       )}
 
-      {/* ── Sidebar ── */}
+      {/* Sidebar */}
       <nav
         className={`sidebar${sidebarOpen ? " sidebar--open" : ""}`}
         onTouchStart={(e) => { sidebarSwipeX.current = e.touches[0].clientX; }}
@@ -1326,7 +1320,7 @@ function confirmLogout() {
         </div>
       </header>
 
-      {/* Breadcrumb nav strip — shows current view name */}
+      {/* Breadcrumb */}
       {appView !== "learn" && (
         <div className="view-breadcrumb">
           <button className="view-breadcrumb-back" onClick={() => { setAppView("learn"); setSessionStarted(false); }}>← Startseite</button>
@@ -1343,421 +1337,402 @@ function confirmLogout() {
 
       <main className="app-main">
         <div key={appView} className="view-slide-in">
-        {/* ── Exam View ── */}
-        {appView === "exam" && (
-          <ExamView onBack={() => setAppView("learn")} allQs={allQs} />
-        )}
+          {/* Exam View */}
+          {appView === "exam" && (
+            <ExamView onBack={() => setAppView("learn")} allQs={allQs} />
+          )}
 
-        {/* ── Browse View ── */}
-        {appView === "browse" && (
-          <BrowseView onBack={() => setAppView("learn")} allQs={allQs} />
-        )}
+          {/* Browse View */}
+          {appView === "browse" && (
+            <BrowseView onBack={() => setAppView("learn")} allQs={allQs} />
+          )}
 
-        {/* ── Stats View ── */}
-        {appView === "stats" && (
-          <StatsView appState={appState} allQs={allQs} />
-        )}
+          {/* Stats View */}
+          {appView === "stats" && (
+            <StatsView appState={appState} allQs={allQs} />
+          )}
 
-        {/* ── Katalog View ── */}
-        {appView === "katalog" && (
-          <KatalogView
-            allQs={allQs}
-            scrollToId={katalogScrollTo}
-            bookmarkedIds={bookmarkedIds}
-            onToggleBookmark={toggleBookmark}
-          />
-        )}
+          {/* Katalog View */}
+          {appView === "katalog" && (
+            <KatalogView
+              allQs={allQs}
+              scrollToId={katalogScrollTo}
+              bookmarkedIds={bookmarkedIds}
+              onToggleBookmark={toggleBookmark}
+            />
+          )}
 
-        {/* ── Prüfungsvorbereitung View ── */}
-        {appView === "pruefung" && (
-          <PruefungsvorbereitungView />
-        )}
+          {/* Prüfungsvorbereitung View */}
+          {appView === "pruefung" && (
+            <PruefungsvorbereitungView />
+          )}
 
-        {/* ── Learn View ── */}
-        {appView === "learn" && (
-          <>
-            {/* ── FULLSCREEN SESSION ── */}
-            {sessionStarted && currentCard ? (
-              <div className="session-fullscreen">
-                <div className="session-fullscreen-topbar">
-                  <button className="session-back-btn" onClick={() => { clearSavedSession(); setSessionStarted(false); }}>
-                    ← Zurück
-                  </button>
-                  {isDrillMode ? (
-                    <div className="drill-session-header">
-                      <div className="drill-session-title">
-                        <span className="drill-fire">🔥</span>
-                        <span>Schwachstellen-Drill</span>
-                      </div>
-                      <div className="drill-mastery-row">
-                        <div className="drill-mastery-bar-track">
-                          <div
-                            className="drill-mastery-bar-fill"
-                            style={{ width: `${drillInitialIds.length === 0 ? 0 : (drillMastered / drillInitialIds.length) * 100}%` }}
-                          />
-                        </div>
-                        <span className="drill-mastery-label">
-                          {drillMastered} / {drillInitialIds.length} gemeistert
-                        </span>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="session-header">
-                      <ProgressBar current={cardIndex + 1} total={sessionQueue.length} />
-                      <span className={`quiz-mode-badge${
-                        currentCard.block === CALC_BLOCK ? " qmb-calc"
-                        : quizMode === "mc" ? " qmb-mc"
-                        : quizMode === "tf" ? " qmb-tf"
-                        : quizMode === "freetext" ? " qmb-freetext"
-                        : quizMode === "self" ? " qmb-self"
-                        : quizMode === "smart" ? " qmb-smart"
-                        : " qmb-classic"
-                      }`}>
-                        {currentCard.block === CALC_BLOCK ? "🔢 Rechenaufgabe"
-                        : quizMode === "mc" ? "🎯 Multiple Choice"
-                        : quizMode === "tf" ? "✅ Wahr / Falsch"
-                        : quizMode === "freetext" ? "✍️ Freitext"
-                        : quizMode === "self" ? "⭐ Selbstbewertung"
-                        : quizMode === "smart" ? "🧠 Smart-Lernen"
-                        : "📖 Klassisch"}
-                      </span>
-                    </div>
-                  )}
-                </div>
-
-                <div className="session-fullscreen-body">
-                  {currentCard.block === CALC_BLOCK ? (
-                    <CalcCard key={currentCard.id} card={currentCard} cardState={cardState} onMark={markCard} />
-                  ) : quizMode === "classic" ? (
-                    <ClassicCard key={currentCard.id} card={currentCard} cardState={cardState} onMark={markCard} />
-                  ) : quizMode === "mc" ? (
-                    <MCCard key={currentCard.id} card={currentCard} allQs={allQs} cardState={cardState} onMark={markCard} />
-                  ) : quizMode === "tf" ? (
-                    <TrueFalseCard key={currentCard.id} card={currentCard} allQs={allQs} cardState={cardState} onMark={markCard} />
-                  ) : quizMode === "freetext" ? (
-                    <FreetextCard key={currentCard.id} card={currentCard} cardState={cardState} onMark={markCard} />
-                  ) : quizMode === "smart" ? (
-                    <SmartCard key={currentCard.id} card={currentCard} cardState={cardState} onMark={markCard} />
-                  ) : (
-                    <SelfCard key={currentCard.id} card={currentCard} cardState={cardState} onMark={markCard} />
-                  )}
-
-                  <button
-                    className={`btn-bookmark-card${bookmarkedIds.has(currentCard.id) ? " btn-bookmark-card--active" : ""}`}
-                    onClick={() => toggleBookmark(currentCard.id)}
-                    title={bookmarkedIds.has(currentCard.id) ? "Merker entfernen" : "Frage merken"}
-                  >
-                    {bookmarkedIds.has(currentCard.id) ? "🔖 Gemerkt" : "🔖 Merken"}
-                  </button>
-
-                  {!isDrillMode && cardIndex + 1 < sessionQueue.length && (
-                    <button className="btn btn-skip" onClick={() => setCardIndex((i) => i + 1)}>
-                      Überspringen →
+          {/* Learn View */}
+          {appView === "learn" && (
+            <>
+              {/* Fullscreen Session */}
+              {sessionStarted && currentCard ? (
+                <div className="session-fullscreen">
+                  <div className="session-fullscreen-topbar">
+                    <button className="session-back-btn" onClick={() => { clearSavedSession(); setSessionStarted(false); }}>
+                      ← Zurück
                     </button>
-                  )}
-                </div>
-              </div>
-
-            ) : drillCompleted ? (
-              <div className="session-done drill-done">
-                <div className="done-icon">🏆</div>
-                <h2>Drill abgeschlossen!</h2>
-                <p>Hervorragend! Du hast alle <strong>{drillInitialIds.length}</strong> schwachen Fragen gemeistert.</p>
-                <div className="drill-done-actions">
-                  <button className="btn btn-drill" onClick={() => startDrill()} disabled={drillCandidateCount === 0}>
-                    🔥 Neuer Drill ({Math.min(drillCandidateCount, 20)})
-                  </button>
-                  <button className="btn btn-primary" onClick={() => { setDrillCompleted(false); startSession(); }}>
-                    Weiter lernen
-                  </button>
-                </div>
-              </div>
-
-            ) : sessionStarted && !currentCard ? (
-              <div className="session-done">
-                <div className="done-icon">🎉</div>
-                <h2>Runde abgeschlossen!</h2>
-                <p>Du hast alle Karten in dieser Runde durchgearbeitet.</p>
-                <button className="btn btn-primary" onClick={startSession}>Neue Runde starten</button>
-              </div>
-
-            ) : (
-              /* ── HOME / LEARN TABS ── */
-              <>
-                {/* Tab switch */}
-                <div className="learn-tab-switch">
-                  <button
-                    className={`learn-tab-btn${learnTab === "dashboard" ? " learn-tab-btn--active" : ""}`}
-                    onClick={() => setLearnTab("dashboard")}
-                  >
-                    📊 Dashboard
-                  </button>
-                  <button
-                    className={`learn-tab-btn${learnTab === "setup" ? " learn-tab-btn--active" : ""}`}
-                    onClick={() => setLearnTab("setup")}
-                  >
-                    📚 Lernen
-                  </button>
-                </div>
-
-                {learnTab === "dashboard" ? (
-                  /* ── DASHBOARD TAB ── */
-                  <div className="learn-panel">
-
-                    {/* Welcome banner */}
-                    <div className={`welcome-banner${showWelcomeBanner ? " welcome-banner--visible" : ""}`}>
-                      <span className="welcome-banner-text">
-                         {getGreeting(currentUser)} 👋
-                      </span>
-                      <button className="welcome-banner-close" onClick={() => setShowWelcomeBanner(false)}>✕</button>
-                    </div>
-
-                    {/* Continue last session */}
-                    {hasSavedSession && savedSessionDataRef.current && (
-                      <button className="continue-session-btn" onClick={continueLastSession}>
-                        <span className="continue-session-icon">▶</span>
-                        <span className="continue-session-text">
-                          <span className="continue-session-label">Weiter lernen</span>
-                          <span className="continue-session-sub">
-                            {savedSessionDataRef.current.isDrillMode ? "Schwachstellen-Drill" : "Letzte Session"} · Frage {savedSessionDataRef.current.cardIndex + 1} von {savedSessionDataRef.current.queue.length}
+                    {isDrillMode ? (
+                      <div className="drill-session-header">
+                        <div className="drill-session-title">
+                          <span className="drill-fire">🔥</span>
+                          <span>Schwachstellen-Drill</span>
+                        </div>
+                        <div className="drill-mastery-row">
+                          <div className="drill-mastery-bar-track">
+                            <div
+                              className="drill-mastery-bar-fill"
+                              style={{ width: `${drillInitialIds.length === 0 ? 0 : (drillMastered / drillInitialIds.length) * 100}%` }}
+                            />
+                          </div>
+                          <span className="drill-mastery-label">
+                            {drillMastered} / {drillInitialIds.length} gemeistert
                           </span>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="session-header">
+                        <ProgressBar current={cardIndex + 1} total={sessionQueue.length} />
+                        <span className={`quiz-mode-badge${
+                          currentCard.block === CALC_BLOCK ? " qmb-calc"
+                          : quizMode === "mc" ? " qmb-mc"
+                          : quizMode === "tf" ? " qmb-tf"
+                          : quizMode === "freetext" ? " qmb-freetext"
+                          : quizMode === "self" ? " qmb-self"
+                          : quizMode === "smart" ? " qmb-smart"
+                          : " qmb-classic"
+                        }`}>
+                          {currentCard.block === CALC_BLOCK ? "🔢 Rechenaufgabe"
+                          : quizMode === "mc" ? "🎯 Multiple Choice"
+                          : quizMode === "tf" ? "✅ Wahr / Falsch"
+                          : quizMode === "freetext" ? "✍️ Freitext"
+                          : quizMode === "self" ? "⭐ Selbstbewertung"
+                          : quizMode === "smart" ? "🧠 Smart-Lernen"
+                          : "📖 Klassisch"}
                         </span>
-                        <span className="continue-session-arrow">→</span>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="session-fullscreen-body">
+                    {currentCard.block === CALC_BLOCK ? (
+                      <CalcCard key={currentCard.id} card={currentCard} cardState={cardState} onMark={markCard} />
+                    ) : quizMode === "classic" ? (
+                      <ClassicCard key={currentCard.id} card={currentCard} cardState={cardState} onMark={markCard} />
+                    ) : quizMode === "mc" ? (
+                      <MCCard key={currentCard.id} card={currentCard} allQs={allQs} cardState={cardState} onMark={markCard} />
+                    ) : quizMode === "tf" ? (
+                      <TrueFalseCard key={currentCard.id} card={currentCard} allQs={allQs} cardState={cardState} onMark={markCard} />
+                    ) : quizMode === "freetext" ? (
+                      <FreetextCard key={currentCard.id} card={currentCard} cardState={cardState} onMark={markCard} />
+                    ) : quizMode === "smart" ? (
+                      <SmartCard key={currentCard.id} card={currentCard} cardState={cardState} onMark={markCard} />
+                    ) : (
+                      <SelfCard key={currentCard.id} card={currentCard} cardState={cardState} onMark={markCard} />
+                    )}
+
+                    <button
+                      className={`btn-bookmark-card${bookmarkedIds.has(currentCard.id) ? " btn-bookmark-card--active" : ""}`}
+                      onClick={() => toggleBookmark(currentCard.id)}
+                      title={bookmarkedIds.has(currentCard.id) ? "Merker entfernen" : "Frage merken"}
+                    >
+                      {bookmarkedIds.has(currentCard.id) ? "🔖 Gemerkt" : "🔖 Merken"}
+                    </button>
+
+                    {!isDrillMode && cardIndex + 1 < sessionQueue.length && (
+                      <button className="btn btn-skip" onClick={() => setCardIndex((i) => i + 1)}>
+                        Überspringen →
                       </button>
                     )}
+                  </div>
+                </div>
+              ) : drillCompleted ? (
+                <div className="session-done drill-done">
+                  <div className="done-icon">🏆</div>
+                  <h2>Drill abgeschlossen!</h2>
+                  <p>Hervorragend! Du hast alle <strong>{drillInitialIds.length}</strong> schwachen Fragen gemeistert.</p>
+                  <div className="drill-done-actions">
+                    <button className="btn btn-drill" onClick={() => startDrill()} disabled={drillCandidateCount === 0}>
+                      🔥 Neuer Drill ({Math.min(drillCandidateCount, 20)})
+                    </button>
+                    <button className="btn btn-primary" onClick={() => { setDrillCompleted(false); startSession(); }}>
+                      Weiter lernen
+                    </button>
+                  </div>
+                </div>
+              ) : sessionStarted && !currentCard ? (
+                <div className="session-done">
+                  <div className="done-icon">🎉</div>
+                  <h2>Runde abgeschlossen!</h2>
+                  <p>Du hast alle Karten in dieser Runde durchgearbeitet.</p>
+                  <button className="btn btn-primary" onClick={startSession}>Neue Runde starten</button>
+                </div>
+              ) : (
+                /* Home / Learn Tabs */
+                <>
+                  <div className="learn-tab-switch">
+                    <button
+                      className={`learn-tab-btn${learnTab === "dashboard" ? " learn-tab-btn--active" : ""}`}
+                      onClick={() => setLearnTab("dashboard")}
+                    >
+                      📊 Dashboard
+                    </button>
+                    <button
+                      className={`learn-tab-btn${learnTab === "setup" ? " learn-tab-btn--active" : ""}`}
+                      onClick={() => setLearnTab("setup")}
+                    >
+                      📚 Lernen
+                    </button>
+                  </div>
 
-                    {/* Progress overview */}
-                    {(() => {
-                      const cardValues = Object.values(appState.cards);
-                      const learned = cardValues.filter(c => c.status === "learned").length;
-                      const seen = cardValues.filter(c => c.seenCount > 0).length;
-                      const weak = cardValues.filter(c => c.status === "weak").length;
-                      const pct = allQs.length > 0 ? Math.round((learned / allQs.length) * 100) : 0;
-                      const seenPct = allQs.length > 0 ? Math.round((seen / allQs.length) * 100) : 0;
-                      return (
-                        <div className="dashboard-overview">
-                          <div className="dashboard-overview-header">
-                            <span className="dashboard-overview-title">Gesamtfortschritt</span>
-                            <span className="dashboard-overview-pct">{pct}%</span>
+                  {learnTab === "dashboard" ? (
+                    <div className="learn-panel">
+                      <div className={`welcome-banner${showWelcomeBanner ? " welcome-banner--visible" : ""}`}>
+                        <span className="welcome-banner-text">
+                          {getGreeting(currentUser)} 👋
+                        </span>
+                        <button className="welcome-banner-close" onClick={() => setShowWelcomeBanner(false)}>✕</button>
+                      </div>
+
+                      {hasSavedSession && savedSessionDataRef.current && (
+                        <button className="continue-session-btn" onClick={continueLastSession}>
+                          <span className="continue-session-icon">▶</span>
+                          <span className="continue-session-text">
+                            <span className="continue-session-label">Weiter lernen</span>
+                            <span className="continue-session-sub">
+                              {savedSessionDataRef.current.isDrillMode ? "Schwachstellen-Drill" : "Letzte Session"} · Frage {savedSessionDataRef.current.cardIndex + 1} von {savedSessionDataRef.current.queue.length}
+                            </span>
+                          </span>
+                          <span className="continue-session-arrow">→</span>
+                        </button>
+                      )}
+
+                      {(() => {
+                        const cardValues = Object.values(appState.cards);
+                        const learned = cardValues.filter(c => c.status === "learned").length;
+                        const seen = cardValues.filter(c => c.seenCount > 0).length;
+                        const weak = cardValues.filter(c => c.status === "weak").length;
+                        const pct = allQs.length > 0 ? Math.round((learned / allQs.length) * 100) : 0;
+                        const seenPct = allQs.length > 0 ? Math.round((seen / allQs.length) * 100) : 0;
+                        return (
+                          <div className="dashboard-overview">
+                            <div className="dashboard-overview-header">
+                              <span className="dashboard-overview-title">Gesamtfortschritt</span>
+                              <span className="dashboard-overview-pct">{pct}%</span>
+                            </div>
+                            <div className="dashboard-progress-track">
+                              <div className="dashboard-progress-seen"  style={{ width: `${seenPct}%` }} />
+                              <div className="dashboard-progress-learned" style={{ width: `${pct}%` }} />
+                            </div>
+                            <div className="dashboard-overview-stats">
+                              <span className="dash-stat dash-stat--total">
+                                <strong>{allQs.length}</strong> Gesamt
+                              </span>
+                              <span className="dash-stat dash-stat--unseen">
+                                <strong>{allQs.length - seen}</strong> Ungesehen
+                              </span>
+                              <span className="dash-stat dash-stat--learned">
+                                <strong>{learned}</strong> Gelernt ✓
+                              </span>
+                              <span className="dash-stat dash-stat--weak">
+                                <strong>{weak}</strong> Schwach ⚠
+                              </span>
+                            </div>
+                            {streak > 0 && (
+                              <div className="dashboard-streak-row">
+                                🔥 <strong>{streak} Tage</strong> Lernserie aktiv
+                              </div>
+                            )}
+                            <button
+                              className="btn btn-primary dashboard-start-btn"
+                              onClick={() => setLearnTab("setup")}
+                            >
+                              Lernen einrichten →
+                            </button>
                           </div>
-                          <div className="dashboard-progress-track">
-                            <div className="dashboard-progress-seen"  style={{ width: `${seenPct}%` }} />
-                            <div className="dashboard-progress-learned" style={{ width: `${pct}%` }} />
+                        );
+                      })()}
+
+                      {(() => {
+                        const rdmQ = allQs.length > 0 ? allQs[Math.floor(_homeRandomFraction * allQs.length)] : null;
+                        if (!rdmQ) return null;
+                        return (
+                          <button
+                            className="fragenkatalog-block fragenkatalog-block--interactive frage-des-moments-home"
+                            onClick={() => { setKatalogScrollTo(rdmQ.id); setAppView("katalog"); }}
+                            title="Im Fragenkatalog öffnen"
+                          >
+                            <div className="fragenkatalog-header">
+                              <span className="fragenkatalog-icon">💡</span>
+                              <h3 className="fragenkatalog-title">Frage des Moments</h3>
+                              <span className="fragenkatalog-open-hint">→ Katalog</span>
+                            </div>
+                            <p className="fragenkatalog-question">{rdmQ.question}</p>
+                            <p className="fragenkatalog-answer-label-inline">Antwort</p>
+                            <p className="fragenkatalog-desc">{rdmQ.answer}</p>
+                          </button>
+                        );
+                      })()}
+
+                      <WeakBlocksPanel allQs={allQs} appState={appState} onDrillBlock={(block) => startDrill(block)} />
+                    </div>
+                  ) : (
+                    <div className="learn-panel">
+                      <div className="mode-section">
+                        <span className="mode-section-label">Kartentyp</span>
+                        <div className="quiz-mode-grid">
+                          {([
+                            { value: "classic",  icon: "📖", label: "Klassisch" },
+                            { value: "mc",       icon: "🎯", label: "Multiple Choice" },
+                            { value: "tf",       icon: "✅", label: "Wahr / Falsch" },
+                            { value: "freetext", icon: "✍️", label: "Freitext" },
+                            { value: "self",     icon: "⭐", label: "Selbstbewertung" },
+                            { value: "smart",    icon: "🧠", label: "Smart-Lernen" },
+                          ] as const).map(({ value, icon, label }) => (
+                            <button
+                              key={value}
+                              className={`qm-tile${quizMode === value ? " qm-tile--active" : ""}`}
+                              onClick={() => setQuizMode(value)}
+                            >
+                              <span className="qm-tile-icon">{icon}</span>
+                              <span className="qm-tile-label">{label}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="learn-filters">
+                        <div className="mode-bar">
+                          <label className="mode-label">Kapitel:</label>
+                          <select
+                            className="mode-select"
+                            value={blockFilter}
+                            onChange={(e) => { setBlockFilter(e.target.value); setSessionStarted(false); }}
+                          >
+                            <option value="all">Alle Kapitel ({allQs.length})</option>
+                            {blocks.map(([name, count]) => (
+                              <option key={name} value={name}>{name} ({count})</option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div className="mode-bar">
+                          <label className="mode-label">Reihenfolge:</label>
+                          <select
+                            className="mode-select"
+                            value={learningMode}
+                            onChange={(e) => setLearningMode(e.target.value as LearningMode)}
+                          >
+                            <option value="all">Alle Karten</option>
+                            <option value="unseen_first">Ungesehen zuerst</option>
+                            <option value="weak_first">Schwach zuerst</option>
+                            <option value="learned_first">Gelernt zuerst</option>
+                            <option value="exam_mix">Prüfungsmix</option>
+                          </select>
+                        </div>
+
+                        <div className="mode-bar">
+                          <label className="mode-label">Suche:</label>
+                          <div className="browse-search-wrap" style={{ flex: 1, margin: 0 }}>
+                            <span className="browse-search-icon">🔍</span>
+                            <input
+                              className="browse-search"
+                              placeholder="Frage oder Antwort durchsuchen…"
+                              value={searchFilter}
+                              onChange={(e) => { setSearchFilter(e.target.value); setSessionStarted(false); }}
+                            />
+                            {searchFilter && (
+                              <button className="browse-search-clear" onClick={() => { setSearchFilter(""); setSessionStarted(false); }}>✕</button>
+                            )}
                           </div>
-                          <div className="dashboard-overview-stats">
-                            <span className="dash-stat dash-stat--total">
-                              <strong>{allQs.length}</strong> Gesamt
-                            </span>
-                            <span className="dash-stat dash-stat--unseen">
-                              <strong>{allQs.length - seen}</strong> Ungesehen
-                            </span>
-                            <span className="dash-stat dash-stat--learned">
-                              <strong>{learned}</strong> Gelernt ✓
-                            </span>
-                            <span className="dash-stat dash-stat--weak">
-                              <strong>{weak}</strong> Schwach ⚠
-                            </span>
-                          </div>
-                          {streak > 0 && (
-                            <div className="dashboard-streak-row">
-                              🔥 <strong>{streak} Tage</strong> Lernserie aktiv
+                          {searchFilter.trim() && (
+                            <span className="search-match-hint">{searchMatchCount} Treffer</span>
+                          )}
+                        </div>
+                      </div>
+
+                      {(filterStatus !== "all" || blockFilter !== "all" || searchFilter.trim() !== "") && (
+                        <div className="filter-banners">
+                          {blockFilter !== "all" && (
+                            <div className="filter-banner filter-banner-block">
+                              <span className="filter-banner-icon">📚</span>
+                              <span className="filter-banner-text">Kapitel: <strong>{blockFilter}</strong></span>
+                              <button className="filter-banner-clear" onClick={() => { setBlockFilter("all"); setSessionStarted(false); }}>✕</button>
                             </div>
                           )}
-                          <button
-                            className="btn btn-primary dashboard-start-btn"
-                            onClick={() => setLearnTab("setup")}
-                          >
-                            Lernen einrichten →
-                          </button>
-                        </div>
-                      );
-                    })()}
-
-                    {/* Frage des Moments */}
-                    {(() => {
-                      const rdmQ = allQs.length > 0 ? allQs[Math.floor(_homeRandomFraction * allQs.length)] : null;
-                      if (!rdmQ) return null;
-                      return (
-                        <button
-                          className="fragenkatalog-block fragenkatalog-block--interactive frage-des-moments-home"
-                          onClick={() => { setKatalogScrollTo(rdmQ.id); setAppView("katalog"); }}
-                          title="Im Fragenkatalog öffnen"
-                        >
-                          <div className="fragenkatalog-header">
-                            <span className="fragenkatalog-icon">💡</span>
-                            <h3 className="fragenkatalog-title">Frage des Moments</h3>
-                            <span className="fragenkatalog-open-hint">→ Katalog</span>
-                          </div>
-                          <p className="fragenkatalog-question">{rdmQ.question}</p>
-                          <p className="fragenkatalog-answer-label-inline">Antwort</p>
-                          <p className="fragenkatalog-desc">{rdmQ.answer}</p>
-                        </button>
-                      );
-                    })()}
-
-                    <WeakBlocksPanel allQs={allQs} appState={appState} onDrillBlock={(block) => startDrill(block)} />
-                  </div>
-
-                ) : (
-                  /* ── LERNEN / SETUP TAB ── */
-                  <div className="learn-panel">
-
-                    {/* Card type selection */}
-                    <div className="mode-section">
-                      <span className="mode-section-label">Kartentyp</span>
-                      <div className="quiz-mode-grid">
-                        {([
-                          { value: "classic",  icon: "📖", label: "Klassisch" },
-                          { value: "mc",       icon: "🎯", label: "Multiple Choice" },
-                          { value: "tf",       icon: "✅", label: "Wahr / Falsch" },
-                          { value: "freetext", icon: "✍️", label: "Freitext" },
-                          { value: "self",     icon: "⭐", label: "Selbstbewertung" },
-                          { value: "smart",    icon: "🧠", label: "Smart-Lernen" },
-                        ] as const).map(({ value, icon, label }) => (
-                          <button
-                            key={value}
-                            className={`qm-tile${quizMode === value ? " qm-tile--active" : ""}`}
-                            onClick={() => setQuizMode(value)}
-                          >
-                            <span className="qm-tile-icon">{icon}</span>
-                            <span className="qm-tile-label">{label}</span>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Filters */}
-                    <div className="learn-filters">
-                      <div className="mode-bar">
-                        <label className="mode-label">Kapitel:</label>
-                        <select
-                          className="mode-select"
-                          value={blockFilter}
-                          onChange={(e) => { setBlockFilter(e.target.value); setSessionStarted(false); }}
-                        >
-                          <option value="all">Alle Kapitel ({allQs.length})</option>
-                          {blocks.map(([name, count]) => (
-                            <option key={name} value={name}>{name} ({count})</option>
-                          ))}
-                        </select>
-                      </div>
-
-                      <div className="mode-bar">
-                        <label className="mode-label">Reihenfolge:</label>
-                        <select
-                          className="mode-select"
-                          value={learningMode}
-                          onChange={(e) => setLearningMode(e.target.value as LearningMode)}
-                        >
-                          <option value="all">Alle Karten</option>
-                          <option value="unseen_first">Ungesehen zuerst</option>
-                          <option value="weak_first">Schwach zuerst</option>
-                          <option value="learned_first">Gelernt zuerst</option>
-                          <option value="exam_mix">Prüfungsmix</option>
-                        </select>
-                      </div>
-
-                      <div className="mode-bar">
-                        <label className="mode-label">Suche:</label>
-                        <div className="browse-search-wrap" style={{ flex: 1, margin: 0 }}>
-                          <span className="browse-search-icon">🔍</span>
-                          <input
-                            className="browse-search"
-                            placeholder="Frage oder Antwort durchsuchen…"
-                            value={searchFilter}
-                            onChange={(e) => { setSearchFilter(e.target.value); setSessionStarted(false); }}
-                          />
-                          {searchFilter && (
-                            <button className="browse-search-clear" onClick={() => { setSearchFilter(""); setSessionStarted(false); }}>✕</button>
+                          {filterStatus !== "all" && (
+                            <div className={`filter-banner filter-banner-${filterStatus}`}>
+                              <span className="filter-banner-icon">
+                                {filterStatus === "weak" ? "⚠" : filterStatus === "learned" ? "✓" : "👁"}
+                              </span>
+                              <span className="filter-banner-text">
+                                {filterStatus === "weak" && "Nur schwache Fragen"}
+                                {filterStatus === "learned" && "Nur gelernte Fragen"}
+                                {filterStatus === "unseen" && "Nur ungesehene Fragen"}
+                              </span>
+                              <button className="filter-banner-clear" onClick={() => { setFilterStatus("all"); setSessionStarted(false); }}>✕</button>
+                            </div>
+                          )}
+                          {searchFilter.trim() && (
+                            <div className="filter-banner filter-banner-search">
+                              <span className="filter-banner-icon">🔍</span>
+                              <span className="filter-banner-text">Suche: <strong>„{searchFilter}"</strong> · {searchMatchCount} Treffer</span>
+                              <button className="filter-banner-clear" onClick={() => { setSearchFilter(""); setSessionStarted(false); }}>✕</button>
+                            </div>
                           )}
                         </div>
-                        {searchFilter.trim() && (
-                          <span className="search-match-hint">{searchMatchCount} Treffer</span>
-                        )}
-                      </div>
+                      )}
+
+                      <button className="btn btn-primary large-btn setup-start-btn" onClick={startSession}>
+                        {blockFilter !== "all" ? `📚 Kapitel starten` : "Jetzt starten"}
+                      </button>
+
+                      {drillCandidateCount > 0 && (
+                        <div className="mode-bar drill-bar">
+                          <button
+                            className="btn btn-drill"
+                            onClick={() => startDrill()}
+                            title={`Top ${Math.min(drillCandidateCount, 20)} schwächste Fragen wiederholen bis alle gemeistert sind`}
+                          >
+                            🔥 Schwachstellen-Drill
+                            <span className="drill-count-badge">{Math.min(drillCandidateCount, 20)}</span>
+                          </button>
+                          <span className="drill-hint">
+                            {drillCandidateCount} schwache Frage{drillCandidateCount !== 1 ? "n" : ""} · Drill läuft bis alle gemeistert sind
+                          </span>
+                        </div>
+                      )}
+
+                      {bookmarkedIds.size > 0 && (
+                        <div className="mode-bar bookmark-bar">
+                          <button
+                            className="btn btn-bookmark-session"
+                            onClick={startBookmarkSession}
+                            title={`${bookmarkedIds.size} gemerkte Fragen lernen`}
+                          >
+                            🔖 Gemerkte lernen
+                            <span className="drill-count-badge">{bookmarkedIds.size}</span>
+                          </button>
+                          <span className="drill-hint">
+                            {bookmarkedIds.size} gemerkte Frage{bookmarkedIds.size !== 1 ? "n" : ""} in eigener Session lernen
+                          </span>
+                        </div>
+                      )}
+
+                      <button className="btn btn-ghost reset-btn-sm" onClick={resetProgress}>
+                        Fortschritt zurücksetzen
+                      </button>
                     </div>
-
-                    {/* Active filter banners */}
-                    {(filterStatus !== "all" || blockFilter !== "all" || searchFilter.trim() !== "") && (
-                      <div className="filter-banners">
-                        {blockFilter !== "all" && (
-                          <div className="filter-banner filter-banner-block">
-                            <span className="filter-banner-icon">📚</span>
-                            <span className="filter-banner-text">Kapitel: <strong>{blockFilter}</strong></span>
-                            <button className="filter-banner-clear" onClick={() => { setBlockFilter("all"); setSessionStarted(false); }}>✕</button>
-                          </div>
-                        )}
-                        {filterStatus !== "all" && (
-                          <div className={`filter-banner filter-banner-${filterStatus}`}>
-                            <span className="filter-banner-icon">
-                              {filterStatus === "weak" ? "⚠" : filterStatus === "learned" ? "✓" : "👁"}
-                            </span>
-                            <span className="filter-banner-text">
-                              {filterStatus === "weak" && "Nur schwache Fragen"}
-                              {filterStatus === "learned" && "Nur gelernte Fragen"}
-                              {filterStatus === "unseen" && "Nur ungesehene Fragen"}
-                            </span>
-                            <button className="filter-banner-clear" onClick={() => { setFilterStatus("all"); setSessionStarted(false); }}>✕</button>
-                          </div>
-                        )}
-                        {searchFilter.trim() && (
-                          <div className="filter-banner filter-banner-search">
-                            <span className="filter-banner-icon">🔍</span>
-                            <span className="filter-banner-text">Suche: <strong>„{searchFilter}"</strong> · {searchMatchCount} Treffer</span>
-                            <button className="filter-banner-clear" onClick={() => { setSearchFilter(""); setSessionStarted(false); }}>✕</button>
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    {/* Primary start button */}
-                    <button className="btn btn-primary large-btn setup-start-btn" onClick={startSession}>
-                      {blockFilter !== "all" ? `📚 Kapitel starten` : "Jetzt starten"}
-                    </button>
-
-                    {/* Drill */}
-                    {drillCandidateCount > 0 && (
-                      <div className="mode-bar drill-bar">
-                        <button
-                          className="btn btn-drill"
-                          onClick={() => startDrill()}
-                          title={`Top ${Math.min(drillCandidateCount, 20)} schwächste Fragen wiederholen bis alle gemeistert sind`}
-                        >
-                          🔥 Schwachstellen-Drill
-                          <span className="drill-count-badge">{Math.min(drillCandidateCount, 20)}</span>
-                        </button>
-                        <span className="drill-hint">
-                          {drillCandidateCount} schwache Frage{drillCandidateCount !== 1 ? "n" : ""} · Drill läuft bis alle gemeistert sind
-                        </span>
-                      </div>
-                    )}
-
-                    {/* Bookmarks */}
-                    {bookmarkedIds.size > 0 && (
-                      <div className="mode-bar bookmark-bar">
-                        <button
-                          className="btn btn-bookmark-session"
-                          onClick={startBookmarkSession}
-                          title={`${bookmarkedIds.size} gemerkte Fragen lernen`}
-                        >
-                          🔖 Gemerkte lernen
-                          <span className="drill-count-badge">{bookmarkedIds.size}</span>
-                        </button>
-                        <span className="drill-hint">
-                          {bookmarkedIds.size} gemerkte Frage{bookmarkedIds.size !== 1 ? "n" : ""} in eigener Session lernen
-                        </span>
-                      </div>
-                    )}
-
-                    <button className="btn btn-ghost reset-btn-sm" onClick={resetProgress}>
-                      Fortschritt zurücksetzen
-                    </button>
-                  </div>
-                )}
-              </>
-            )}
-      </>
-    )}
+                  )}
+                </>
+              )}
+            </>
+          )}
         </div>
       </main>
 
