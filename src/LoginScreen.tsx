@@ -26,7 +26,8 @@ export default function LoginScreen({ onLogin }: { onLogin: (name: string) => vo
     saveUsers(db);
 
     await syncUserLogin(trimmedName).catch(() => {});
-    onLogin(trimmedName);
+   localStorage.setItem("user", trimmedName);
+onLogin(trimmedName);
     setSubmitting(false);
   }
 
