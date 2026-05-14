@@ -61,6 +61,26 @@ function saveState(state: AppState, storageKey: string) {
   localStorage.setItem(storageKey, JSON.stringify(state));
 }
 
+async function checkForceLogout(userId: string) {
+
+  const { data: profile } = await supabase
+    .from("users")
+    .select("force_logout")
+    .eq("id", userId)
+    .single();
+
+  if (profile?.force_logout) {
+
+    localStorage.clear();
+
+    await supabase
+      .from("users")
+      .update({ force_logout: false })
+      .eq("id", userId);
+
+    window.location.reload();
+  }
+}
 function getCardState(state: AppState, id: number): CardState {
   return (
     state.cards[id] ?? {
@@ -1159,6 +1179,7 @@ function markCard(correct: boolean) {
     const period = getCurrentPeriod();
     localStorage.setItem("lastWelcomePeriod", period);
     setCurrentUser(name);
+    checkForceLogout(name);
     setShowLogoutConfirm(false); // ← wichtig, damit der Abmelde-Dialog nicht direkt erscheint
     setAppState(loadState(storageKeyForUser(name)));
     setSessionStarted(false);
