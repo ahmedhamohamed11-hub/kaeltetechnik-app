@@ -897,13 +897,23 @@ useEffect(() => {
     return () => clearTimeout(t);
   }, []);
 
-  // Startup Sync & Daily Tracking – nur wenn Benutzer bekannt
-  useEffect(() => {
-    if (!currentUser) return;
-    trackDailyOnline();
-    skipProgressSyncForUserRef.current = currentUser;
-    syncOnStartup(progressPayload).catch(() => {});
-  }, [currentUser, progressPayload]);
+// Startup Sync & Daily Tracking – nur wenn Benutzer bekannt
+useEffect(() => {
+  if (!currentUser) return;
+
+  trackDailyOnline();
+
+  skipProgressSyncForUserRef.current = currentUser;
+
+  syncOnStartup(progressPayload).catch(() => {});
+
+  const interval = setInterval(() => {
+    checkForceLogout(currentUser);
+  }, 5000);
+
+  return () => clearInterval(interval);
+
+}, [currentUser, progressPayload]);
 
   // Queue Progress Sync (throttled)
   useEffect(() => {
