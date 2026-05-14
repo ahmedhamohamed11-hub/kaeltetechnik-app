@@ -66,7 +66,7 @@ async function checkForceLogout(userId: string) {
   const { data: profile } = await supabase
     .from("users")
     .select("force_logout")
-    .eq("id", userId)
+    .eq("name", userId)
     .single();
 
   if (profile?.force_logout) {
