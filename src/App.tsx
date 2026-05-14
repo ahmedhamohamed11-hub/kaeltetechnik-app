@@ -919,10 +919,12 @@ useEffect(() => {
   syncOnStartup(progressPayload).catch(() => {});
 
   const interval = setInterval(() => {
-    checkForceLogout(currentUser);
+    checkForceLogout(currentUser, setCurrentUser);
   }, 5000);
 
   return () => clearInterval(interval);
+
+}, [currentUser, progressPayload]);
 
 }, [currentUser, progressPayload]);
 
