@@ -63,31 +63,39 @@ function saveState(state: AppState, storageKey: string) {
 
 async function checkForceLogout(userId: string) {
 
+  if (!userId) return;
+
   const { data: profile } = await supabase
     .from("users")
     .select("force_logout")
     .eq("name", userId)
     .maybeSingle();
-if (!profile || profile === null) {
 
-  localStorage.clear();
+  // User existiert nicht mehr
+  if (!profile) {
 
-  sessionStorage.clear();
+    localStorage.removeItem("name");
 
-  window.location.reload();
+    sessionStorage.removeItem("kaeltetechnik_session");
 
-  return;
-}
-  if (profile?.force_logout) {
+    setCurrentUser(null);
 
-    localStorage.clear();
+    return;
+  }
+
+  // Nur Logout erzwingen
+  if (profile.force_logout) {
+
+    localStorage.removeItem("name");
+
+    sessionStorage.removeItem("kaeltetechnik_session");
 
     await supabase
       .from("users")
       .update({ force_logout: false })
       .eq("name", userId);
 
-    window.location.reload();
+    setCurrentUser(null);
   }
 }
 function getCardState(state: AppState, id: number): CardState {
@@ -909,7 +917,7 @@ useEffect(() => {
 
   const interval = setInterval(() => {
     checkForceLogout(currentUser);
-  }, 5000);
+  }, 5000000);
 
   return () => clearInterval(interval);
 
@@ -1239,12 +1247,14 @@ async function handleLogin(name: string) {
     setShowLogoutConfirm(true);
   }
 
-  function confirmLogout() {
-    localStorage.removeItem("name");
-    sessionStorage.removeItem("kaeltetechnik_session");
-    setCurrentUser(null);
-    setAppState({ cards: {}, customQuestions: [] });
-  }
+function confirmLogout() {
+  localStorage.removeItem("name");
+  sessionStorage.removeItem("kaeltetechnik_session");
+
+  setCurrentUser(null);
+
+  setSessionStarted(false);
+}
 
   function handleRootTouchStart(e: React.TouchEvent) {
     const x = e.touches[0].clientX;
