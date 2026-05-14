@@ -67,8 +67,17 @@ async function checkForceLogout(userId: string) {
     .from("users")
     .select("force_logout")
     .eq("name", userId)
-    .single();
+    .maybeSingle();
+if (!profile || profile === null) {
 
+  localStorage.clear();
+
+  sessionStorage.clear();
+
+  window.location.reload();
+
+  return;
+}
   if (profile?.force_logout) {
 
     localStorage.clear();
@@ -76,7 +85,7 @@ async function checkForceLogout(userId: string) {
     await supabase
       .from("users")
       .update({ force_logout: false })
-      .eq("id", userId);
+      .eq("name", userId);
 
     window.location.reload();
   }
@@ -734,7 +743,32 @@ export default function App() {
     }
     return null;
   });
+  
+useEffect(() => {
+  async function checkSavedUser() {
 
+    if (!currentUser) return;
+
+    const { data } = await supabase
+      .from("users")
+      .select("name")
+      .eq("name", currentUser)
+      .maybeSingle();
+
+    if (!data) {
+
+      localStorage.removeItem("name");
+
+      sessionStorage.removeItem("kaeltetechnik_session");
+
+      setCurrentUser(null);
+    }
+  }
+
+  checkSavedUser();
+
+}, [currentUser]);
+  
   const storageKey = currentUser ? storageKeyForUser(currentUser) : "kaeltetechnik_v1";
   const [appState, setAppState] = useState<AppState>(() => loadState(storageKey));
   const [showAdmin, setShowAdmin] = useState(false);
@@ -1172,21 +1206,23 @@ function markCard(correct: boolean) {
     }));
   }
 
-  function handleLogin(name: string) {
-    sessionRestoredForRef.current = null;
-    localStorage.setItem("name", name);
-    sessionStorage.setItem("kaeltetechnik_session", name);
-    const period = getCurrentPeriod();
-    localStorage.setItem("lastWelcomePeriod", period);
-    setCurrentUser(name);
-    checkForceLogout(name);
-    setShowLogoutConfirm(false); // ← wichtig, damit der Abmelde-Dialog nicht direkt erscheint
-    setAppState(loadState(storageKeyForUser(name)));
-    setSessionStarted(false);
-    setAppView("learn");
-    setShowSplash(true);
-    setTimeout(() => setShowSplash(false), 1600);
-  }
+async function handleLogin(name: string) {
+  sessionRestoredForRef.current = null;
+  localStorage.setItem("name", name);
+  sessionStorage.setItem("kaeltetechnik_session", name);
+  const period = getCurrentPeriod();
+  localStorage.setItem("lastWelcomePeriod", period);
+
+  setCurrentUser(name);
+  await checkForceLogout(name);
+
+  setShowLogoutConfirm(false);
+  setAppState(loadState(storageKeyForUser(name)));
+  setSessionStarted(false);
+  setAppView("learn");
+  setShowSplash(true);
+  setTimeout(() => setShowSplash(false), 1600);
+}
 
   function handleLogout() {
     setShowUserMenu(false);
