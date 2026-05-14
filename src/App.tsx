@@ -926,8 +926,6 @@ useEffect(() => {
 
 }, [currentUser, progressPayload]);
 
-}, [currentUser, progressPayload]);
-
   // Queue Progress Sync (throttled)
   useEffect(() => {
     if (!currentUser) return;
