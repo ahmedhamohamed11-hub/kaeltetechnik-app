@@ -61,7 +61,10 @@ function saveState(state: AppState, storageKey: string) {
   localStorage.setItem(storageKey, JSON.stringify(state));
 }
 
-async function checkForceLogout(userId: string) {
+async function checkForceLogout(
+  userId: string,
+  setCurrentUser: (user: string | null) => void
+) {
 
   if (!userId) return;
 
@@ -71,7 +74,7 @@ async function checkForceLogout(userId: string) {
     .eq("name", userId)
     .maybeSingle();
 
-  // User existiert nicht mehr
+  // User gelöscht
   if (!profile) {
 
     localStorage.removeItem("name");
@@ -83,7 +86,7 @@ async function checkForceLogout(userId: string) {
     return;
   }
 
-  // Nur Logout erzwingen
+  // Logout erzwingen
   if (profile.force_logout) {
 
     localStorage.removeItem("name");
@@ -917,7 +920,7 @@ useEffect(() => {
 
   const interval = setInterval(() => {
     checkForceLogout(currentUser);
-  }, 5000000);
+  }, 5000);
 
   return () => clearInterval(interval);
 
@@ -1232,7 +1235,7 @@ async function handleLogin(name: string) {
   localStorage.setItem("lastWelcomePeriod", period);
 
   setCurrentUser(name);
-  await checkForceLogout(name);
+  await checkForceLogout(name, setCurrentUser);
 
   setShowLogoutConfirm(false);
   setAppState(loadState(storageKeyForUser(name)));
