@@ -68,14 +68,23 @@ async function checkForceLogout(
 
   if (!userId) return;
 
-  const { data: profile } = await supabase
+  // Offline → nichts machen
+  if (!navigator.onLine) return;
+
+  const { data: profile, error } = await supabase
     .from("users")
     .select("force_logout")
     .eq("name", userId)
     .maybeSingle();
 
-  // User gelöscht
-  if (!profile) {
+  // Fehler → NICHT logout
+  if (error) {
+    console.warn("Force logout check failed:", error);
+    return;
+  }
+
+  // User wirklich gelöscht
+  if (profile === null) {
 
     localStorage.removeItem("name");
 
@@ -86,8 +95,8 @@ async function checkForceLogout(
     return;
   }
 
-  // Logout erzwingen
-  if (profile.force_logout) {
+  // Force Logout
+  if (profile.force_logout === true) {
 
     localStorage.removeItem("name");
 
@@ -756,17 +765,25 @@ export default function App() {
   });
   
 useEffect(() => {
+
   async function checkSavedUser() {
 
     if (!currentUser) return;
 
-    const { data } = await supabase
+    // Offline → User behalten
+    if (!navigator.onLine) return;
+
+    const { data, error } = await supabase
       .from("users")
       .select("name")
       .eq("name", currentUser)
       .maybeSingle();
 
-    if (!data) {
+    // Fehler → nichts machen
+    if (error) return;
+
+    // Nur wenn wirklich gelöscht
+    if (data === null) {
 
       localStorage.removeItem("name");
 
@@ -919,9 +936,10 @@ useEffect(() => {
   syncOnStartup(progressPayload).catch(() => {});
 
   const interval = setInterval(() => {
-    checkForceLogout(currentUser, setCurrentUser);
-  }, 5000);
+   if (!navigator.onLine) return;
+  checkForceLogout(currentUser, setCurrentUser);
 
+}, 60000);
   return () => clearInterval(interval);
 
 }, [currentUser, progressPayload]);
