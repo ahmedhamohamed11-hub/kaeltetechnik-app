@@ -840,62 +840,27 @@ export default function AdminPanel({ onClose, onChanged, onAddQuestions, customQ
                           )}
                         </div>
 
-                      <div className="admin-user-meta">
-
-  <span>
-    {user.totalLogins ?? 0} Anmeldung
-    {(user.totalLogins ?? 0) !== 1 ? "en" : ""}
-  </span>
-
-  <span>
-    &nbsp;·&nbsp;
-
-    {user.last_active ? (() => {
-
-      const diff =
-        Date.now() -
-        new Date(user.last_active).getTime();
-
-      if (diff < 60000) {
-        return "🟢 Online";
-      }
-
-      const minutes = Math.floor(diff / 60000);
-
-      if (minutes < 60) {
-        return `Aktiv vor ${minutes} Min`;
-      }
-
-      const hours = Math.floor(minutes / 60);
-
-      if (hours < 24) {
-        return `Aktiv vor ${hours} Std`;
-      }
-
-      const days = Math.floor(hours / 24);
-
-      return `Aktiv vor ${days} Tagen`;
-
-    })() : "Nicht aktiv"}
-
-  </span>
-
-</div>
-
-<div className="admin-user-prog-wrap">
-
-  <div className="admin-user-prog-bar">
-    <div
-      className="admin-user-prog-fill"
-      style={{ width: `${pct}%` }}
-    />
-  </div>
-
-  <span className="admin-user-prog-label">
-    {pct}%
-  </span>
-
-</div>
+                        <div className="admin-user-info">
+                          <div className="admin-user-name" style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                            {displayName}
+                            {online && (
+                              <span style={{ fontSize: "0.65rem", background: "#22c55e", color: "#fff", borderRadius: 4, padding: "1px 5px" }}>
+                                Online
+                              </span>
+                            )}
+                            <span style={{ fontSize: "0.65rem", color: "var(--text-muted)", marginLeft: "auto" }}>
+                              {expanded ? "▲" : "▼"}
+                            </span>
+                          </div>
+                          <div className="admin-user-meta">
+                            {user.totalLogins ?? 0} Anmeldung{(user.totalLogins ?? 0) !== 1 ? "en" : ""}
+                            &nbsp;·&nbsp;
+                           Zuletzt aktiv: {formatDate(user.last_active)}
+                          </div>
+                          <div className="admin-user-prog-wrap">
+                            <div className="admin-user-prog-bar">
+                              <div className="admin-user-prog-fill" style={{ width: `${pct}%` }} />
+                            </div>
                             <span className="admin-user-prog-label">{pct}%</span>
                           </div>
                           <div className="admin-user-stats">
