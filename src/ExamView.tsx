@@ -211,7 +211,7 @@ export default function ExamView({
               <button
                 key={idx}
                 className={`mc-option${selected === idx ? " mc-exam-selected" : ""}`}
-                onClick={() => selected === null && setSelected(idx)}
+                onClick={() => setSelected(idx)}
               >
                 <span className="mc-label">{LABELS[idx]}</span>
                 <span className="mc-text">{opt.text}</span>
