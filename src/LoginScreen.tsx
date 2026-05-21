@@ -18,11 +18,6 @@ export default function LoginScreen({ onLogin }: { onLogin: (name: string) => vo
     setError("");
 
     try {
-      if (!supabase) {
-        onLogin(trimName);
-        return;
-      }
-
       // 1. Existiert der Benutzer bereits?
       const { data: existing, error: fetchError } = await supabase
         .from("users")
