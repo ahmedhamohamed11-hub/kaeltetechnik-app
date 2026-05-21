@@ -855,7 +855,7 @@ export default function AdminPanel({ onClose, onChanged, onAddQuestions, customQ
                           <div className="admin-user-meta">
                             {user.totalLogins ?? 0} Anmeldung{(user.totalLogins ?? 0) !== 1 ? "en" : ""}
                             &nbsp;·&nbsp;
-                           Zuletzt aktiv: {formatDate(user.last_active)}
+                           Zuletzt aktiv: {formatDate(user.lastActive)}
                           </div>
                           <div className="admin-user-prog-wrap">
                             <div className="admin-user-prog-bar">
@@ -893,7 +893,7 @@ export default function AdminPanel({ onClose, onChanged, onAddQuestions, customQ
                           }}>
                             {[
                               { icon: "📅", label: "Erste Anmeldung", value: formatDateShort(user.firstLoginDate) },
-                              { icon: "🔑", label: "Letzte Anmeldung", value: formatDateShort(user.lastLoginDate) },
+                              { icon: "🔑", label: "Letzte Active", value: formatDateShort(user.lastActive) },
                               { icon: "📊", label: "Genauigkeit", value: `${pct}%` },
                               { icon: "✓", label: "Richtig", value: String(correct) },
                               { icon: "✗", label: "Falsch", value: String(wrong) },
