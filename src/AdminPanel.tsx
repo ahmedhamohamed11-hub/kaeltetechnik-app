@@ -852,7 +852,7 @@ export default function AdminPanel({ onClose, onChanged, onAddQuestions, customQ
                               {expanded ? "▲" : "▼"}
                             </span>
                           </div>
-                          <div className="admin-user-meta">
+        <div className="admin-user-meta">
 
   <span>
     {user.totalLogins ?? 0} Anmeldung
