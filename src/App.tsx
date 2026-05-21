@@ -10,7 +10,7 @@ import AdminPanel from "./AdminPanel";
 import { loadAdminOverrides } from "./adminOverrides";
 import ResetModal from "./ResetModal";
 import LoginScreen from "./LoginScreen";
-import { storageKeyForUser } from "./userStorage";
+import { storageKeyForUser } from ".f/userStorage";
 import KatalogView from "./KatalogView";
 import PruefungsvorbereitungView from "./PruefungsvorbereitungView";
 import SmartCard from "./SmartCard";
@@ -1277,6 +1277,12 @@ export default function App() {
     localStorage.setItem("lastWelcomePeriod", period);
 
     setCurrentUser(name);
+    await supabase
+  .from("users")
+  .update({
+    last_active: new Date().toISOString(),
+  })
+  .eq("name", name);
     await checkForceLogout(name, setCurrentUser);
 
     setShowLogoutConfirm(false);
