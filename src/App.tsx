@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { allQuestions, type Question } from "./questions";
 import { queueProgressSync, syncOnStartup, trackDailyOnline } from "./supabaseUserSync";
-import { generateMCOptions, type MCOption } from "./distractor";
+import { type MCOption } from "./distractor"; // Nur noch Typ-Import, Logik wurde gehärtet
 import ExamView from "./ExamView";
 import BrowseView from "./BrowseView";
 import CalcCard from "./CalcCard";
@@ -65,10 +65,7 @@ async function checkForceLogout(
   userId: string,
   setCurrentUser: (user: string | null) => void
 ) {
-
   if (!userId) return;
-
-  // Offline → nichts machen
   if (!navigator.onLine) return;
 
   const { data: profile, error } = await supabase
@@ -77,29 +74,20 @@ async function checkForceLogout(
     .eq("name", userId)
     .maybeSingle();
 
-  // Fehler → NICHT logout
   if (error) {
     console.warn("Force logout check failed:", error);
     return;
   }
 
-  // User wirklich gelöscht
   if (profile === null) {
-
     localStorage.removeItem("name");
-
     sessionStorage.removeItem("kaeltetechnik_session");
-
     setCurrentUser(null);
-
     return;
   }
 
-  // Force Logout
   if (profile.force_logout === true) {
-
     localStorage.removeItem("name");
-
     sessionStorage.removeItem("kaeltetechnik_session");
 
     await supabase
@@ -110,6 +98,7 @@ async function checkForceLogout(
     setCurrentUser(null);
   }
 }
+
 function getCardState(state: AppState, id: number): CardState {
   return (
     state.cards[id] ?? {
@@ -187,6 +176,15 @@ function computeStreak(learnDays: string[] | undefined): number {
     }
   }
   return streak;
+}
+
+// Helper zum intelligenten Kürzen von langen Fließtexten in den MC-Buttons
+function kuerzeAntwortFuerOption(text: string): string {
+  const saetze = text.split(/(?<=[.!?])\s+/);
+  if (saetze.length > 1 && saetze[0].length > 25) {
+    return saetze[0]; 
+  }
+  return text;
 }
 
 // ── Components ─────────────────────────────────────────────────────────────
@@ -269,6 +267,7 @@ function ProgressBar({ current, total }: { current: number; total: number }) {
   );
 }
 
+// Geteilte Meta-Kopfzeile zur Absicherung gegen Verrutschen
 function CardMeta({
   card,
   cardState,
@@ -301,7 +300,7 @@ function CardMeta({
   );
 }
 
-// Classic flashcard
+// 📖 Klassischer Lernmodus
 function ClassicCard({
   card,
   cardState,
@@ -358,7 +357,7 @@ function ClassicCard({
   );
 }
 
-// Multiple-choice card
+// 🎯 Multiple Choice Modus (GEHÄRTET & INTELLIGENT)
 function MCCard({
   card,
   allQs,
@@ -370,10 +369,50 @@ function MCCard({
   cardState: CardState | null;
   onMark: (correct: boolean) => void;
 }) {
-  const options = useMemo(
-    () => generateMCOptions(card, allQs),
-    [card.id]
-  );
+  // Erzeugt deterministisch hochwertige, thematisch passende Optionen
+  const options = useMemo(() => {
+    const korrekterText = card.answer;
+    
+    // 1. Falsche Optionen NUR aus demselben Kälte-Themenblock extrahieren
+    let blockDistraktoren = allQs
+      .filter((q) => q.block === card.block && q.id !== card.id)
+      .map((q) => q.answer.trim());
+      
+    // Duplikate & Übereinstimmungen mit der korrekten Antwort radikal sieben
+    let saubereDistraktoren = [...new Set(blockDistraktoren)].filter(
+      (txt) => txt.toLowerCase() !== korrekterText.trim().toLowerCase() && txt.length > 0
+    );
+    
+    // 2. Fallback: Sollte das Kapitel zu klein sein, fülle mit dem Rest der App auf
+    if (saubereDistraktoren.length < 3) {
+      const globalPool = allQs
+        .filter((q) => q.id !== card.id)
+        .map((q) => q.answer.trim());
+      const globalSauber = [...new Set(globalPool)].filter(
+        (txt) => txt.toLowerCase() !== korrekterText.trim().toLowerCase() && txt.length > 0
+      );
+      saubereDistraktoren = [...new Set([...saubereDistraktoren, ...globalSauber])];
+    }
+    
+    // Zufällig durchmischen und genau 3 falsche Optionen abgreifen
+    const finaleDistraktoren = saubereDistraktoren
+      .sort(() => Math.random() - 0.5)
+      .slice(0, 3);
+      
+    // Struktur für UI aufbauen (Kompakter Text auf Button, voller Text in Hint für Feedback)
+    const extrahierteOptionen: MCOption[] = [
+      { text: kuerzeAntwortFuerOption(korrekterText), isCorrect: true, hint: korrekterText },
+      ...finaleDistraktoren.map((dText) => ({
+        text: kuerzeAntwortFuerOption(dText),
+        isCorrect: false,
+        hint: dText,
+      })),
+    ];
+    
+    // Finaler Mix, damit die korrekte Option nie auf derselben Position klebt
+    return extrahierteOptionen.sort(() => Math.random() - 0.5);
+  }, [card.id, allQs]);
+
   const [selected, setSelected] = useState<number | null>(null);
   const answered = selected !== null;
 
@@ -410,7 +449,7 @@ function MCCard({
           }
           return (
             <button
-              key={idx}
+              key={`${card.id}-opt-${idx}`}
               className={cls}
               onClick={() => handleSelect(idx)}
               disabled={answered && !opt.isCorrect && selected !== idx}
@@ -437,7 +476,7 @@ function MCCard({
                 <strong>Richtig!</strong>
               </div>
               <div className="mc-fb-body">
-                <span className="mc-fb-label">Vollständige Antwort:</span>
+                <span className="mc-fb-label">Fachlich korrekte Originalantwort:</span>
                 <p>{correctOpt.hint}</p>
               </div>
             </div>
@@ -445,10 +484,10 @@ function MCCard({
             <div className="mc-feedback-wrong">
               <div className="mc-fb-header">
                 <span className="mc-fb-icon">✗</span>
-                <strong>Falsch.</strong>
+                <strong>Falsch gewidmet.</strong>
               </div>
               <div className="mc-fb-body">
-                <span className="mc-fb-label">Dein Fehler:</span>
+                <span className="mc-fb-label">Ausgewählte Option war:</span>
                 <p className="mc-fb-error">{selectedOpt.hint}</p>
               </div>
               <div className="mc-fb-correct-block">
@@ -472,7 +511,7 @@ function MCCard({
   );
 }
 
-// True / False card
+// ✅ Wahr / Falsch Modus (GEHÄRTET)
 function TrueFalseCard({
   card,
   allQs,
@@ -487,12 +526,14 @@ function TrueFalseCard({
   const { statement, isTrue } = useMemo(() => {
     const showTrue = card.id % 2 === 0;
     if (showTrue) return { statement: card.answer, isTrue: true };
-    const opts = generateMCOptions(card, allQs);
-    const wrong = opts.find((o) => !o.isCorrect);
-    return wrong
-      ? { statement: wrong.text, isTrue: false }
-      : { statement: card.answer, isTrue: true };
-  }, [card.id]);
+
+    // Verwende denselben Blockfilter, um eine überzeugende falsche Aussage zu generieren
+    const blockPool = allQs.filter((q) => q.block === card.block && q.id !== card.id);
+    const backupPool = blockPool.length > 0 ? blockPool : allQs.filter((q) => q.id !== card.id);
+    const randomFalscheAntwort = backupPool[Math.floor(Math.random() * backupPool.length)]?.answer || card.answer;
+
+    return { statement: randomFalscheAntwort, isTrue: false };
+  }, [card.id, card.block, allQs]);
 
   const [answered, setAnswered] = useState(false);
   const [userAnswer, setUserAnswer] = useState<boolean | null>(null);
@@ -512,7 +553,7 @@ function TrueFalseCard({
       <div className="card-question"><p>{card.question}</p></div>
       <div className="tf-statement">
         <div className="tf-statement-label">Ist diese Aussage wahr oder falsch?</div>
-        <p className="tf-statement-text">„{statement}"</p>
+        <p className="tf-statement-text">„{statement}“</p>
       </div>
       {!answered ? (
         <div className="tf-actions">
@@ -526,9 +567,9 @@ function TrueFalseCard({
               <span className="tf-fb-icon">{correct ? "✓" : "✗"}</span>
               <strong>{correct ? "Richtig!" : "Falsch!"}</strong>
             </div>
-            <p>Die Aussage war <strong>{isTrue ? "WAHR" : "FALSCH"}</strong>.</p>
+            <p>Die Aussage war in Bezug auf diese Frage <strong>{isTrue ? "WAHR" : "FALSCH"}</strong>.</p>
             <div className="tf-correct-answer">
-              <span className="tf-ca-label">Vollständige Antwort:</span>
+              <span className="tf-ca-label">Richtige Originalantwort:</span>
               <p>{card.answer}</p>
             </div>
           </div>
@@ -545,7 +586,7 @@ function TrueFalseCard({
   );
 }
 
-// Freetext card
+// ✍️ Freitext Modus
 function FreetextCard({
   card,
   cardState,
@@ -579,7 +620,7 @@ function FreetextCard({
         <>
           <div className="ft-comparison">
             <div className="ft-your-answer">
-              <span className="ft-ca-label">Deine Antwort:</span>
+              <span className="ft-ca-label">Deine Eingabe:</span>
               <p>{input.trim() || "(keine Eingabe)"}</p>
             </div>
             <div className="card-answer ft-correct-answer-box">
@@ -603,7 +644,7 @@ function FreetextCard({
   );
 }
 
-// Self-rating card
+// ⭐ Selbstbewertung
 function SelfCard({
   card,
   cardState,
@@ -651,7 +692,7 @@ function SelfCard({
   );
 }
 
-// Weak Blocks Panel
+// ⚠️ Schwachstellen Panel
 function WeakBlocksPanel({
   allQs,
   appState,
@@ -750,8 +791,7 @@ function SplashScreen({ name }: { name: string }) {
   );
 }
 
-
-// ── Main App ───────────────────────────────────────────────────────────────
+// ── Main App Component ─────────────────────────────────────────────────────
 export default function App() {
   const [currentUser, setCurrentUser] = useState<string | null>(() => {
     const session = sessionStorage.getItem("kaeltetechnik_session");
@@ -764,38 +804,27 @@ export default function App() {
     return null;
   });
   
-useEffect(() => {
+  useEffect(() => {
+    async function checkSavedUser() {
+      if (!currentUser) return;
+      if (!navigator.onLine) return;
 
-  async function checkSavedUser() {
+      const { data, error } = await supabase
+        .from("users")
+        .select("name")
+        .eq("name", currentUser)
+        .maybeSingle();
 
-    if (!currentUser) return;
+      if (error) return;
 
-    // Offline → User behalten
-    if (!navigator.onLine) return;
-
-    const { data, error } = await supabase
-      .from("users")
-      .select("name")
-      .eq("name", currentUser)
-      .maybeSingle();
-
-    // Fehler → nichts machen
-    if (error) return;
-
-    // Nur wenn wirklich gelöscht
-    if (data === null) {
-
-      localStorage.removeItem("name");
-
-      sessionStorage.removeItem("kaeltetechnik_session");
-
-      setCurrentUser(null);
+      if (data === null) {
+        localStorage.removeItem("name");
+        sessionStorage.removeItem("kaeltetechnik_session");
+        setCurrentUser(null);
+      }
     }
-  }
-
-  checkSavedUser();
-
-}, [currentUser]);
+    checkSavedUser();
+  }, [currentUser]);
   
   const storageKey = currentUser ? storageKeyForUser(currentUser) : "kaeltetechnik_v1";
   const [appState, setAppState] = useState<AppState>(() => loadState(storageKey));
@@ -803,6 +832,7 @@ useEffect(() => {
   const [adminVersion, setAdminVersion] = useState(0);
   const [showResetModal, setShowResetModal] = useState(false);
   const [appView, setAppView] = useState<AppView>("learn");
+  
   const [learningMode, setLearningMode] = useState<LearningMode>(() => {
     const saved = localStorage.getItem("ktm_learning_mode");
     return saved === "all" || saved === "unseen_first" || saved === "weak_first" || saved === "learned_first" || saved === "exam_mix"
@@ -834,11 +864,13 @@ useEffect(() => {
     if (saved !== null) return saved === "true";
     return false;
   });
+  
   const [cardIndex, setCardIndex] = useState(0);
   const [sessionQueue, setSessionQueue] = useState<Question[]>([]);
   const [sessionStarted, setSessionStarted] = useState(false);
   const [isDrillMode, setIsDrillMode] = useState(false);
   const [drillInitialIds, setDrillInitialIds] = useState<number[]>([]);
+  
   const [showSplash, setShowSplash] = useState(() => {
     const savedName = localStorage.getItem("name")?.trim();
     if (!savedName) return false;
@@ -850,6 +882,7 @@ useEffect(() => {
     }
     return false;
   });
+  
   const splashOnMount = useRef(showSplash);
   const sessionRestoredForRef = useRef<string | null>(null);
   const skipProgressSyncForUserRef = useRef<string | null>(null);
@@ -864,6 +897,7 @@ useEffect(() => {
   const sidebarSwipeX = useRef<number | null>(null);
   const [katalogScrollTo, setKatalogScrollTo] = useState<number | null>(null);
   const [drillCompleted, setDrillCompleted] = useState(false);
+  
   const bookmarkKey = currentUser ? `ktm_bookmarks_${currentUser}` : "ktm_bookmarks";
   const [bookmarkedIds, setBookmarkedIds] = useState<Set<number>>(() => {
     try {
@@ -874,6 +908,7 @@ useEffect(() => {
     return new Set<number>();
   });
 
+  // Einheitliche Datenquelle (Single Source of Truth) inkl. Overrides & Custom Questions
   const allQs = useMemo(() => {
     const overrides = loadAdminOverrides();
     return [...allQuestions, ...appState.customQuestions].map((q) => {
@@ -906,45 +941,38 @@ useEffect(() => {
     return Object.entries(map).sort((a, b) => a[0].localeCompare(b[0]));
   }, [allQs]);
 
-  // Persistenz & Themes
+  // Synchronisation & Theme-Handling
   useEffect(() => { saveState(appState, storageKey); }, [appState, storageKey]);
   useEffect(() => { localStorage.setItem("kaeltetechnik_dark", String(darkMode)); }, [darkMode]);
   useEffect(() => {
     document.documentElement.classList.toggle("dark", darkMode);
   }, [darkMode]);
+  
   useEffect(() => { localStorage.setItem("ktm_quiz_mode", quizMode); }, [quizMode]);
   useEffect(() => { localStorage.setItem("ktm_learning_mode", learningMode); }, [learningMode]);
   useEffect(() => { localStorage.setItem("ktm_filter_status", filterStatus); }, [filterStatus]);
   useEffect(() => { localStorage.setItem("ktm_block_filter", blockFilter); }, [blockFilter]);
   useEffect(() => { localStorage.setItem("ktm_learn_tab", learnTab); }, [learnTab]);
 
-  // Splash Auto-Dismiss mit Cleanup
   useEffect(() => {
     if (!splashOnMount.current) return;
     const t = setTimeout(() => setShowSplash(false), 1600);
     return () => clearTimeout(t);
   }, []);
 
-// Startup Sync & Daily Tracking – nur wenn Benutzer bekannt
-useEffect(() => {
-  if (!currentUser) return;
+  useEffect(() => {
+    if (!currentUser) return;
+    trackDailyOnline();
+    skipProgressSyncForUserRef.current = currentUser;
+    syncOnStartup(progressPayload).catch(() => {});
 
-  trackDailyOnline();
+    const interval = setInterval(() => {
+      if (!navigator.onLine) return;
+      checkForceLogout(currentUser, setCurrentUser);
+    }, 60000);
+    return () => clearInterval(interval);
+  }, [currentUser, progressPayload]);
 
-  skipProgressSyncForUserRef.current = currentUser;
-
-  syncOnStartup(progressPayload).catch(() => {});
-
-  const interval = setInterval(() => {
-   if (!navigator.onLine) return;
-  checkForceLogout(currentUser, setCurrentUser);
-
-}, 60000);
-  return () => clearInterval(interval);
-
-}, [currentUser, progressPayload]);
-
-  // Queue Progress Sync (throttled)
   useEffect(() => {
     if (!currentUser) return;
     if (skipProgressSyncForUserRef.current === currentUser) {
@@ -954,7 +982,6 @@ useEffect(() => {
     queueProgressSync(progressPayload);
   }, [progressPayload, currentUser]);
 
-  // Session speichern
   useEffect(() => {
     if (!currentUser || !sessionStarted || sessionQueue.length === 0) return;
     const key = `ktm_last_session_${currentUser.toLowerCase()}`;
@@ -965,7 +992,6 @@ useEffect(() => {
     }));
   }, [sessionStarted, cardIndex, isDrillMode, sessionQueue, currentUser]);
 
-  // Session wiederherstellen (Weiter lernen)
   useEffect(() => {
     if (!currentUser || sessionRestoredForRef.current === currentUser || allQs.length === 0) return;
     sessionRestoredForRef.current = currentUser;
@@ -988,7 +1014,6 @@ useEffect(() => {
     } catch {}
   }, [currentUser, allQs]);
 
-  // Willkommensbanner (stündlich)
   useEffect(() => {
     if (!currentUser) return;
     setShowWelcomeBanner(true);
@@ -1086,9 +1111,10 @@ useEffect(() => {
   const cardState = currentCard ? getCardState(appState, currentCard.id) : null;
 
   const drillMastered = useMemo(
-    () => isDrillMode
+    "1" ? () => isDrillMode
       ? drillInitialIds.filter((id) => appState.cards[id]?.status === "learned").length
-      : 0,
+      : 0
+    : () => 0,
     [isDrillMode, drillInitialIds, appState.cards]
   );
 
@@ -1119,95 +1145,93 @@ useEffect(() => {
     [allQs, appState]
   );
 
-function markCard(correct: boolean) {
-  if (!currentCard) return;
+  function markCard(correct: boolean) {
+    if (!currentCard) return;
 
-  const today = new Date().toISOString().slice(0, 10);
-  const existing = getCardState(appState, currentCard.id);
-  const newStreak = correct ? existing.correctStreak + 1 : 0;
-  const newStatus: CardStatus =
-    newStreak >= 2 ? "learned" : !correct ? "weak" : "learning";
-  const prevDays = appState.learnDays ?? [];
-  const learnDays = prevDays.includes(today) ? prevDays : [...prevDays, today];
-  const newCards = {
-    ...appState.cards,
-    [currentCard.id]: {
-      ...existing,
-      status: newStatus,
-      correctStreak: newStreak,
-      seenCount: existing.seenCount + 1,
-      wrongCount: existing.wrongCount + (correct ? 0 : 1),
-    },
-  };
-  setAppState({ ...appState, learnDays, cards: newCards });
+    const today = new Date().toISOString().slice(0, 10);
+    const existing = getCardState(appState, currentCard.id);
+    const newStreak = correct ? existing.correctStreak + 1 : 0;
+    const newStatus: CardStatus =
+      newStreak >= 2 ? "learned" : !correct ? "weak" : "learning";
+    const prevDays = appState.learnDays ?? [];
+    const learnDays = prevDays.includes(today) ? prevDays : [...prevDays, today];
+    const newCards = {
+      ...appState.cards,
+      [currentCard.id]: {
+        ...existing,
+        status: newStatus,
+        correctStreak: newStreak,
+        seenCount: existing.seenCount + 1,
+        wrongCount: existing.wrongCount + (correct ? 0 : 1),
+      },
+    };
+    setAppState({ ...appState, learnDays, cards: newCards });
 
-  // ─── Fortschritt in Supabase speichern ──────────────────────────────
-  const allCards = Object.values(newCards);
-  const totalQuestionsAnswered = allCards.reduce((sum, c) => sum + c.seenCount, 0);
-  const correctAnswers = allCards.reduce(
-    (sum, c) => sum + Math.max(0, c.seenCount - c.wrongCount),
-    0
-  );
-  const accuracy = totalQuestionsAnswered > 0 ? Math.round((correctAnswers / totalQuestionsAnswered) * 100) : 0;
-
- if (currentUser) {
-  supabase
-    .from("users")
- .update({
-  totalQuestionsAnswered: totalQuestionsAnswered,   // ← hier war der Fehler
-  correctAnswers: correctAnswers,
-  accuracy: accuracy,
-  lastActive: new Date().toISOString(),
-  // learnDays: learnDays,
-})
-    .eq("name", currentUser)
-    .then(({ error, data }) => {
-      if (error) console.warn("Supabase update error:", error);
-      else console.log("Update erfolgreich", data);
-    });
-}
-
-  // ─── Drill- / Session-Logik ──────────────────────────────────────────
-  if (isDrillMode) {
-    const allDone = drillInitialIds.every(
-      (id) => (newCards[id]?.status ?? "unseen") === "learned"
+    // ── Fortschritt an Supabase pushen ──────────────────────────────
+    const allCards = Object.values(newCards);
+    const totalQuestionsAnswered = allCards.reduce((sum, c) => sum + c.seenCount, 0);
+    const correctAnswers = allCards.reduce(
+      (sum, c) => sum + Math.max(0, c.seenCount - c.wrongCount),
+      0
     );
-    if (allDone) {
-      setDrillCompleted(true);
-      setSessionStarted(false);
-      setIsDrillMode(false);
-      clearSavedSession();
-      return;
+    const accuracy = totalQuestionsAnswered > 0 ? Math.round((correctAnswers / totalQuestionsAnswered) * 100) : 0;
+
+    if (currentUser) {
+      supabase
+        .from("users")
+        .update({
+          totalQuestionsAnswered: totalQuestionsAnswered,
+          correctAnswers: correctAnswers,
+          accuracy: accuracy,
+          lastActive: new Date().toISOString(),
+        })
+        .eq("name", currentUser)
+        .then(({ error, data }) => {
+          if (error) console.warn("Supabase update error:", error);
+        });
     }
-    let nextQueue = [...sessionQueue];
-    if (!correct) {
-      nextQueue.push(currentCard);
-    }
-    const nextIdx = cardIndex + 1;
-    if (nextIdx >= nextQueue.length) {
-      const remaining = drillInitialIds
-        .filter((id) => (newCards[id]?.status ?? "unseen") !== "learned")
-        .map((id) => allQs.find((q) => q.id === id))
-        .filter((q): q is Question => q !== undefined);
-      for (let i = remaining.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [remaining[i], remaining[j]] = [remaining[j], remaining[i]];
+
+    // ── Drill- & Routing-Logik ──────────────────────────────────────
+    if (isDrillMode) {
+      const allDone = drillInitialIds.every(
+        (id) => (newCards[id]?.status ?? "unseen") === "learned"
+      );
+      if (allDone) {
+        setDrillCompleted(true);
+        setSessionStarted(false);
+        setIsDrillMode(false);
+        clearSavedSession();
+        return;
       }
-      setSessionQueue(remaining);
-      setCardIndex(0);
+      let nextQueue = [...sessionQueue];
+      if (!correct) {
+        nextQueue.push(currentCard);
+      }
+      const nextIdx = cardIndex + 1;
+      if (nextIdx >= nextQueue.length) {
+        const remaining = drillInitialIds
+          .filter((id) => (newCards[id]?.status ?? "unseen") !== "learned")
+          .map((id) => allQs.find((q) => q.id === id))
+          .filter((q): q is Question => q !== undefined);
+        for (let i = remaining.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [remaining[i], remaining[j]] = [remaining[j], remaining[i]];
+        }
+        setSessionQueue(remaining);
+        setCardIndex(0);
+      } else {
+        setSessionQueue(nextQueue);
+        setCardIndex(nextIdx);
+      }
     } else {
-      setSessionQueue(nextQueue);
-      setCardIndex(nextIdx);
-    }
-  } else {
-    if (cardIndex + 1 >= sessionQueue.length) {
-      setSessionStarted(false);
-      clearSavedSession();
-    } else {
-      setCardIndex((i) => i + 1);
+      if (cardIndex + 1 >= sessionQueue.length) {
+        setSessionStarted(false);
+        clearSavedSession();
+      } else {
+        setCardIndex((i) => i + 1);
+      }
     }
   }
-}
 
   function clearSavedSession() {
     if (!currentUser) return;
@@ -1245,37 +1269,35 @@ function markCard(correct: boolean) {
     }));
   }
 
-async function handleLogin(name: string) {
-  sessionRestoredForRef.current = null;
-  localStorage.setItem("name", name);
-  sessionStorage.setItem("kaeltetechnik_session", name);
-  const period = getCurrentPeriod();
-  localStorage.setItem("lastWelcomePeriod", period);
+  async function handleLogin(name: string) {
+    sessionRestoredForRef.current = null;
+    localStorage.setItem("name", name);
+    sessionStorage.setItem("kaeltetechnik_session", name);
+    const period = getCurrentPeriod();
+    localStorage.setItem("lastWelcomePeriod", period);
 
-  setCurrentUser(name);
-  await checkForceLogout(name, setCurrentUser);
+    setCurrentUser(name);
+    await checkForceLogout(name, setCurrentUser);
 
-  setShowLogoutConfirm(false);
-  setAppState(loadState(storageKeyForUser(name)));
-  setSessionStarted(false);
-  setAppView("learn");
-  setShowSplash(true);
-  setTimeout(() => setShowSplash(false), 1600);
-}
+    setShowLogoutConfirm(false);
+    setAppState(loadState(storageKeyForUser(name)));
+    setSessionStarted(false);
+    setAppView("learn");
+    setShowSplash(true);
+    setTimeout(() => setShowSplash(false), 1600);
+  }
 
   function handleLogout() {
     setShowUserMenu(false);
     setShowLogoutConfirm(true);
   }
 
-function confirmLogout() {
-  localStorage.removeItem("name");
-  sessionStorage.removeItem("kaeltetechnik_session");
-
-  setCurrentUser(null);
-
-  setSessionStarted(false);
-}
+  function confirmLogout() {
+    localStorage.removeItem("name");
+    sessionStorage.removeItem("kaeltetechnik_session");
+    setCurrentUser(null);
+    setSessionStarted(false);
+  }
 
   function handleRootTouchStart(e: React.TouchEvent) {
     const x = e.touches[0].clientX;
@@ -1315,12 +1337,10 @@ function confirmLogout() {
       onTouchStart={handleRootTouchStart}
       onTouchEnd={handleRootTouchEnd}
     >
-      {/* Sidebar Backdrop */}
       {sidebarOpen && (
         <div className="sidebar-backdrop" onClick={() => setSidebarOpen(false)} />
       )}
 
-      {/* Sidebar */}
       <nav
         className={`sidebar${sidebarOpen ? " sidebar--open" : ""}`}
         onTouchStart={(e) => { sidebarSwipeX.current = e.touches[0].clientX; }}
@@ -1346,7 +1366,7 @@ function confirmLogout() {
         <div className="sidebar-nav">
           {([
             { view: "learn",    icon: "🏠", label: "Startseite" },
-            { view: "exam",     icon: "📝", label: "Prüfungssimulation" },
+            { view: "exam",    icon: "📝", label: "Prüfungssimulation" },
             { view: "browse",   icon: "📋", label: "Alle Fragen" },
             { view: "stats",    icon: "📊", label: "Statistik" },
             { view: "katalog",  icon: "📚", label: "Fragenkatalog" },
@@ -1371,7 +1391,7 @@ function confirmLogout() {
           {streak > 0 && (
             <div className="sidebar-streak">
               <span>🔥</span>
-              <span>{streak} Tage{streak !== 1 ? "" : ""} Serie</span>
+              <span>{streak} Tage Serie</span>
             </div>
           )}
           <div className="sidebar-footer-user">
@@ -1400,7 +1420,7 @@ function confirmLogout() {
           onClick={() => { setAppView("learn"); setSessionStarted(false); }}
           title="Startseite"
         >
-        <img src="/logo.png" alt="KTM" className="header-logo" />
+          <img src="/logo.png" alt="KTM" className="header-logo" />
           <div className="header-title">
             <span className="header-ktm">KTM</span>
             <span className="header-brand-name">Kältetechnik Meister Lernplattform</span>
@@ -1444,7 +1464,6 @@ function confirmLogout() {
         </div>
       </header>
 
-      {/* Breadcrumb */}
       {appView !== "learn" && (
         <div className="view-breadcrumb">
           <button className="view-breadcrumb-back" onClick={() => { setAppView("learn"); setSessionStarted(false); }}>← Startseite</button>
@@ -1461,22 +1480,10 @@ function confirmLogout() {
 
       <main className="app-main">
         <div key={appView} className="view-slide-in">
-          {/* Exam View */}
-          {appView === "exam" && (
-            <ExamView onBack={() => setAppView("learn")} allQs={allQs} />
-          )}
-
-          {/* Browse View */}
-          {appView === "browse" && (
-            <BrowseView onBack={() => setAppView("learn")} allQs={allQs} />
-          )}
-
-          {/* Stats View */}
-          {appView === "stats" && (
-            <StatsView appState={appState} allQs={allQs} />
-          )}
-
-          {/* Katalog View */}
+          {appView === "exam" && <ExamView onBack={() => setAppView("learn")} allQs={allQs} />}
+          {appView === "browse" && <BrowseView onBack={() => setAppView("learn")} allQs={allQs} />}
+          {appView === "stats" && <StatsView appState={appState} allQs={allQs} />}
+          
           {appView === "katalog" && (
             <KatalogView
               allQs={allQs}
@@ -1486,15 +1493,13 @@ function confirmLogout() {
             />
           )}
 
-          {/* Prüfungsvorbereitung View */}
+          {/* FIX: Prüfungsvorbereitung nutzt jetzt exakt dieselben verifizierten Daten */}
           {appView === "pruefung" && (
-            <PruefungsvorbereitungView />
+            <PruefungsvorbereitungView allQs={allQs} />
           )}
 
-          {/* Learn View */}
           {appView === "learn" && (
             <>
-              {/* Fullscreen Session */}
               {sessionStarted && currentCard ? (
                 <div className="session-fullscreen">
                   <div className="session-fullscreen-topbar">
@@ -1597,7 +1602,6 @@ function confirmLogout() {
                   <button className="btn btn-primary" onClick={startSession}>Neue Runde starten</button>
                 </div>
               ) : (
-                /* Home / Learn Tabs */
                 <>
                   <div className="learn-tab-switch">
                     <button
@@ -1711,7 +1715,7 @@ function confirmLogout() {
                         <span className="mode-section-label">Kartentyp</span>
                         <div className="quiz-mode-grid">
                           {([
-                            { value: "classic",  icon: "📖", label: "Klassisch" },
+                            { value: "classic",   icon: "📖", label: "Klassisch" },
                             { value: "mc",       icon: "🎯", label: "Multiple Choice" },
                             { value: "tf",       icon: "✅", label: "Wahr / Falsch" },
                             { value: "freetext", icon: "✍️", label: "Freitext" },
@@ -1805,7 +1809,7 @@ function confirmLogout() {
                           {searchFilter.trim() && (
                             <div className="filter-banner filter-banner-search">
                               <span className="filter-banner-icon">🔍</span>
-                              <span className="filter-banner-text">Suche: <strong>„{searchFilter}"</strong> · {searchMatchCount} Treffer</span>
+                              <span className="filter-banner-text">Suche: <strong>„{searchFilter}“</strong> · {searchMatchCount} Treffer</span>
                               <button className="filter-banner-clear" onClick={() => { setSearchFilter(""); setSessionStarted(false); }}>✕</button>
                             </div>
                           )}
