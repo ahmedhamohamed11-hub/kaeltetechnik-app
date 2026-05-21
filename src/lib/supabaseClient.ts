@@ -4,10 +4,8 @@ const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 if (!supabaseUrl || !supabaseAnonKey) {
-  console.warn("[Supabase] Missing env vars - online sync disabled.");
+  throw new Error('Supabase URL und Anon Key müssen in den Umgebungsvariablen gesetzt sein.');
 }
 
-export const supabase =
-  supabaseUrl && supabaseAnonKey
-    ? createClient(supabaseUrl, supabaseAnonKey)
-    : null;
+// Singleton-Instanz
+export const supabase = createClient(supabaseUrl, supabaseAnonKey);
