@@ -27,9 +27,9 @@ export default function KatalogView({ allQs, scrollToId, bookmarkedIds, onToggle
       if (blockFilter !== "all" && q.block !== blockFilter) return false;
       if (!term) return true;
       return (
-        q.frage.toLowerCase().includes(term) ||
-        q.antwortKurz.toLowerCase().includes(term) ||
-        q.erklaerung.toLowerCase().includes(term)
+        q.question.toLowerCase().includes(term) ||
+        q.answer.toLowerCase().includes(term) ||
+        (q.explanation ?? "").toLowerCase().includes(term)
       );
     });
   }, [allQs, search, blockFilter, onlyBookmarked, bookmarkedIds]);
@@ -117,12 +117,10 @@ export default function KatalogView({ allQs, scrollToId, bookmarkedIds, onToggle
                     </button>
                   )}
                 </div>
-                <p className="katalog-flat-question">{q.frage}</p>
+                <p className="katalog-flat-question">{q.question}</p>
                 <div className="katalog-flat-answer-wrap">
-                  <span className="katalog-flat-answer-label">Kurzantwort</span>
-                  <p className="katalog-flat-answer">{q.antwortKurz}</p>
-                  <span className="katalog-flat-answer-label">Originalantwort</span>
-                  <p className="katalog-flat-answer">{q.erklaerung}</p>
+                  <span className="katalog-flat-answer-label">Antwort</span>
+                  <p className="katalog-flat-answer">{q.answer}</p>
                 </div>
               </div>
             );
