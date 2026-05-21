@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { allQuestions, type Question } from "./questions";
 import { queueProgressSync, syncOnStartup, trackDailyOnline } from "./supabaseUserSync";
-import { type MCOption } from "./distractor"; // Nur noch Typ-Import, Logik wurde gehärtet
+import { generateMCOptions, type MCOption } from "./distractor";
 import ExamView from "./ExamView";
 import BrowseView from "./BrowseView";
 import CalcCard from "./CalcCard";
@@ -176,15 +176,6 @@ function computeStreak(learnDays: string[] | undefined): number {
     }
   }
   return streak;
-}
-
-// Helper zum intelligenten Kürzen von langen Fließtexten in den MC-Buttons
-function kuerzeAntwortFuerOption(text: string): string {
-  const saetze = text.split(/(?<=[.!?])\s+/);
-  if (saetze.length > 1 && saetze[0].length > 25) {
-    return saetze[0]; 
-  }
-  return text;
 }
 
 // ── Components ─────────────────────────────────────────────────────────────
@@ -369,49 +360,7 @@ function MCCard({
   cardState: CardState | null;
   onMark: (correct: boolean) => void;
 }) {
-  // Erzeugt deterministisch hochwertige, thematisch passende Optionen
-  const options = useMemo(() => {
-    const korrekterText = card.answer;
-    
-    // 1. Falsche Optionen NUR aus demselben Kälte-Themenblock extrahieren
-    let blockDistraktoren = allQs
-      .filter((q) => q.block === card.block && q.id !== card.id)
-      .map((q) => q.answer.trim());
-      
-    // Duplikate & Übereinstimmungen mit der korrekten Antwort radikal sieben
-    let saubereDistraktoren = [...new Set(blockDistraktoren)].filter(
-      (txt) => txt.toLowerCase() !== korrekterText.trim().toLowerCase() && txt.length > 0
-    );
-    
-    // 2. Fallback: Sollte das Kapitel zu klein sein, fülle mit dem Rest der App auf
-    if (saubereDistraktoren.length < 3) {
-      const globalPool = allQs
-        .filter((q) => q.id !== card.id)
-        .map((q) => q.answer.trim());
-      const globalSauber = [...new Set(globalPool)].filter(
-        (txt) => txt.toLowerCase() !== korrekterText.trim().toLowerCase() && txt.length > 0
-      );
-      saubereDistraktoren = [...new Set([...saubereDistraktoren, ...globalSauber])];
-    }
-    
-    // Zufällig durchmischen und genau 3 falsche Optionen abgreifen
-    const finaleDistraktoren = saubereDistraktoren
-      .sort(() => Math.random() - 0.5)
-      .slice(0, 3);
-      
-    // Struktur für UI aufbauen (Kompakter Text auf Button, voller Text in Hint für Feedback)
-    const extrahierteOptionen: MCOption[] = [
-      { text: kuerzeAntwortFuerOption(korrekterText), isCorrect: true, hint: korrekterText },
-      ...finaleDistraktoren.map((dText) => ({
-        text: kuerzeAntwortFuerOption(dText),
-        isCorrect: false,
-        hint: dText,
-      })),
-    ];
-    
-    // Finaler Mix, damit die korrekte Option nie auf derselben Position klebt
-    return extrahierteOptionen.sort(() => Math.random() - 0.5);
-  }, [card.id, allQs]);
+  const options = useMemo(() => generateMCOptions(card, allQs), [card, allQs]);
 
   const [selected, setSelected] = useState<number | null>(null);
   const answered = selected !== null;
@@ -484,7 +433,7 @@ function MCCard({
             <div className="mc-feedback-wrong">
               <div className="mc-fb-header">
                 <span className="mc-fb-icon">✗</span>
-                <strong>Falsch gewidmet.</strong>
+                <strong>Falsch.</strong>
               </div>
               <div className="mc-fb-body">
                 <span className="mc-fb-label">Ausgewählte Option war:</span>
@@ -913,8 +862,22 @@ export default function App() {
     const overrides = loadAdminOverrides();
     return [...allQuestions, ...appState.customQuestions].map((q) => {
       const ov = overrides[q.id];
-      if (!ov) return q;
-      return { ...q, ...ov };
+      const merged = ov ? { ...q, ...ov } : q;
+      const frage = merged.question.trim();
+      const antwortKurz = merged.answer.trim();
+      const erklaerung = (merged.explanation ?? merged.answer).trim();
+      const thema = merged.block.trim();
+      return {
+        ...merged,
+        frage,
+        antwortKurz,
+        erklaerung,
+        thema,
+        question: frage,
+        answer: antwortKurz,
+        block: thema,
+        explanation: erklaerung,
+      };
     });
   }, [appState.customQuestions, adminVersion]);
 

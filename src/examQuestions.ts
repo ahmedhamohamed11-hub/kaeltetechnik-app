@@ -1,6 +1,11 @@
-import type { Question } from "./questions";
+type ExamQuestionSource = {
+  id: number;
+  block: string;
+  question: string;
+  answer: string;
+};
 
-export const examQuestions: Question[] = [
+export const examQuestions: ExamQuestionSource[] = [
   // ── Physikalische Grundlagen (1–13) ──────────────────────────────────────
   {
     id: 1,

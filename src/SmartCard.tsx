@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import type { Question } from "./questions";
-import { getShortAnswer, validateAnswerMeaning, type ValidationResult } from "./answerUtils";
+import { validateAnswerMeaning, type ValidationResult } from "./answerUtils";
 
 interface CardState {
   id: number;
@@ -29,12 +29,13 @@ export default function SmartCard({ card, cardState, onMark }: Props) {
     setChecked(false);
   }, [card.id]);
 
-  const shortAnswer = getShortAnswer(card.answer);
-  const hasMore = shortAnswer !== card.answer;
+  const shortAnswer = card.antwortKurz;
+  const fullAnswer = card.erklaerung;
+  const hasMore = shortAnswer !== fullAnswer;
 
   function handleCheck() {
     if (!input.trim()) return;
-    const res = validateAnswerMeaning(input, card.answer);
+    const res = validateAnswerMeaning(input, fullAnswer);
     setResult(res);
     setChecked(true);
   }
@@ -88,11 +89,11 @@ export default function SmartCard({ card, cardState, onMark }: Props) {
       {showFull && (
         <div className="smart-full-answer">
           <div className="smart-full-label">Vollständige Antwort</div>
-          <p className="smart-full-text">{card.answer}</p>
-          {card.explanation && (
+          <p className="smart-full-text">{fullAnswer}</p>
+          {fullAnswer && (
             <div className="card-explanation">
               <div className="card-explanation-label">💡 Erklärung</div>
-              <p className="card-explanation-text">{card.explanation}</p>
+              <p className="card-explanation-text">{fullAnswer}</p>
             </div>
           )}
         </div>

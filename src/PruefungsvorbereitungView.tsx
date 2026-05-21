@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { examQuestions } from "./examQuestions";
+import { allQuestions } from "./questions";
 
 export default function PruefungsvorbereitungView() {
   const [search, setSearch] = useState("");
@@ -7,18 +7,19 @@ export default function PruefungsvorbereitungView() {
 
   const blocks = useMemo(() => {
     const map: Record<string, number> = {};
-    examQuestions.forEach((q) => { map[q.block] = (map[q.block] ?? 0) + 1; });
+    allQuestions.forEach((q) => { map[q.thema] = (map[q.thema] ?? 0) + 1; });
     return Object.entries(map);
   }, []);
 
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase();
-    return examQuestions.filter((q) => {
-      if (blockFilter !== "all" && q.block !== blockFilter) return false;
+    return allQuestions.filter((q) => {
+      if (blockFilter !== "all" && q.thema !== blockFilter) return false;
       if (!term) return true;
       return (
-        q.question.toLowerCase().includes(term) ||
-        q.answer.toLowerCase().includes(term)
+        q.frage.toLowerCase().includes(term) ||
+        q.antwortKurz.toLowerCase().includes(term) ||
+        q.erklaerung.toLowerCase().includes(term)
       );
     });
   }, [search, blockFilter]);
@@ -28,7 +29,7 @@ export default function PruefungsvorbereitungView() {
       <div className="pruef-header">
         <h2 className="pruef-title">Fragen – Prüfungsvorbereitung</h2>
         <p className="pruef-subtitle">
-          {examQuestions.length} prüfungsrelevante Fragen · Nur lesen, kein Quiz
+          {allQuestions.length} prüfungsrelevante Fragen · dieselbe Master-Datenquelle wie alle Lernmodi
         </p>
       </div>
 
@@ -50,7 +51,7 @@ export default function PruefungsvorbereitungView() {
           value={blockFilter}
           onChange={(e) => setBlockFilter(e.target.value)}
         >
-          <option value="all">Alle Themen ({examQuestions.length})</option>
+          <option value="all">Alle Themen ({allQuestions.length})</option>
           {blocks.map(([name, count]) => (
             <option key={name} value={name}>{name} ({count})</option>
           ))}
@@ -70,12 +71,14 @@ export default function PruefungsvorbereitungView() {
             <div key={q.id} className="katalog-item katalog-item--flat">
               <div className="katalog-flat-header">
                 <span className="katalog-item-num">{q.id}</span>
-                <span className="katalog-flat-block">{q.block}</span>
+                <span className="katalog-flat-block">{q.thema}</span>
               </div>
-              <p className="katalog-flat-question">{q.question}</p>
+              <p className="katalog-flat-question">{q.frage}</p>
               <div className="katalog-flat-answer-wrap">
-                <span className="katalog-flat-answer-label">Antwort</span>
-                <p className="katalog-flat-answer">{q.answer}</p>
+                <span className="katalog-flat-answer-label">Kurzantwort</span>
+                <p className="katalog-flat-answer">{q.antwortKurz}</p>
+                <span className="katalog-flat-answer-label">Originalantwort</span>
+                <p className="katalog-flat-answer">{q.erklaerung}</p>
               </div>
             </div>
           ))
