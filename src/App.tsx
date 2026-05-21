@@ -10,7 +10,7 @@ import AdminPanel from "./AdminPanel";
 import { loadAdminOverrides } from "./adminOverrides";
 import ResetModal from "./ResetModal";
 import LoginScreen from "./LoginScreen";
-import { storageKeyForUser } from ".f/userStorage";
+import { storageKeyForUser } from "./userStorage";
 import KatalogView from "./KatalogView";
 import PruefungsvorbereitungView from "./PruefungsvorbereitungView";
 import SmartCard from "./SmartCard";
